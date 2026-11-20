@@ -38,7 +38,7 @@ export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
   return <select className={cx(FIELD, className)} {...props} />
 }
 
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string | undefined }) {
   return (
     <label className="grid gap-1 text-xs text-gray-400">
       <span>{label}</span>

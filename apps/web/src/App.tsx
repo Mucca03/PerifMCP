@@ -9,6 +9,8 @@ import { StatusBanners } from './components/StatusBanners'
 import { ROUTES, useRoute, type RoutePath } from './lib/router'
 import { ThemeProvider } from './lib/theme'
 import { KeysPage } from './pages/KeysPage'
+import { LightingPage } from './pages/LightingPage'
+import { MacrosPage } from './pages/MacrosPage'
 import { PlansPage } from './pages/PlansPage'
 import { SnapshotsPage } from './pages/SnapshotsPage'
 import { AppProvider } from './state/app'
@@ -19,6 +21,10 @@ function Page({ route }: { route: RoutePath }): ReactNode {
   switch (route) {
     case '/keys':
       return <KeysPage />
+    case '/lighting':
+      return <LightingPage />
+    case '/macros':
+      return <MacrosPage />
     case '/plans':
       return <PlansPage />
     case '/snapshots':
