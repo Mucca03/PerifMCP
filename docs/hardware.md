@@ -137,3 +137,11 @@ Limits that remain:
 - The keyboard has no read-back command. `applyPlan` returns `applied: true, verified: false` on purpose, and `verify` returns `ok: false`. Only a person looking at the keyboard can confirm the result.
 - Snapshots hold the assumed factory default plus what this process wrote. They do not hold the lighting the keyboard had before. That previous lighting was overwritten and cannot be restored from the program. Restoring a snapshot writes the stored config, which for the first write is "lighting off".
 - The factory reset combo (`Fn+Esc+Q`) is still not checked against the manual.
+
+## Key remap test (Menu to `@`)
+
+The `@` character depends on the OS layout. This session uses `latam` (KDE `kxkbrc`), where `@` is AltGr+Q. The semantic model has an `altgr` modifier for that (right Alt, bit `0x40`). On `us` the same character is Shift+2, and on `es` it is AltGr+2.
+
+The base key table is written the way the reference `map` command does it: `0xFFFFFFFF` ("use what the firmware defines") for every key that is not named, and a value only for the keys in the plan. The HID backend therefore assumes firmware defaults for the base layer instead of 64 self-assigned keys. Going back is the same write with the key set to `none`, which writes an empty table (the reference `unmap`).
+
+The test was applied with an automatic revert after 240 seconds, run by a separate process so it does not depend on the keyboard. Results are recorded below once the owner confirms what was typed.
