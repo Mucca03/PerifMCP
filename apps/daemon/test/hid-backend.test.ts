@@ -263,10 +263,10 @@ describe('HidBackend (fake HID source)', () => {
       snapshots: new SnapshotStore(await makeTempDir()),
       allowWrites: true,
     })
-    const plan = await service.planLighting({ effect: 'breathing', color: '#86efac' })
+    const plan = await service.planLighting({ effect: 'wave', color: '#86efac' })
     const result = await service.applyPlan(plan.id, true)
     expect(result.applied).toBe(false)
-    expect(result.errors.join(' ')).toMatch(/Cannot write yet.*breathing/)
+    expect(result.errors.join(' ')).toMatch(/Cannot write yet.*wave/)
     expect(source.sent.every((item) => isCommandAllowed('read-only', item.command, item.subCommand))).toBe(true)
   })
 
