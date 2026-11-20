@@ -15,8 +15,13 @@ async function main(): Promise<void> {
   const client = new Gk6xClient(connection)
 
   try {
-    await client.ping(5000)
-    console.log('ping: ok')
+    // The GK6X reference tool sends ping without waiting for a reply, so a missing reply is not fatal.
+    try {
+      await client.ping(1500)
+      console.log('ping: reply received')
+    } catch (error) {
+      console.log('ping: no reply (continuing):', error instanceof Error ? error.message : error)
+    }
 
     const version = await client.version()
     console.log('version:', version)
