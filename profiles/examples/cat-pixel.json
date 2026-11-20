@@ -1,0 +1,26 @@
+{
+  "name": "Pixel cat",
+  "description": "Symmetric pixel-art cat face. Purple ears, sides and chin, mint eyes, pink nose, dim violet background.",
+  "model": "SK64 RGB (GIM K64 RGB)",
+  "plan": {
+    "base": "#1e1b4b",
+    "perKey": {
+      "digit3": "#a855f7",
+      "digit4": "#a855f7",
+      "digit8": "#a855f7",
+      "digit9": "#a855f7",
+      "w": "#a855f7",
+      "r": "#a855f7",
+      "u": "#a855f7",
+      "o": "#a855f7",
+      "c": "#a855f7",
+      "v": "#a855f7",
+      "b": "#a855f7",
+      "n": "#a855f7",
+      "d": "#86efac",
+      "k": "#86efac",
+      "g": "#f472b6",
+      "h": "#f472b6"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "Dracula hacker",
+  "description": "Functional zones in the Dracula palette. Modifiers purple, number row cyan, WASD and arrows neon green, everything else dim ice white.",
+  "model": "SK64 RGB (GIM K64 RGB)",
+  "plan": {
+    "base": "#4a4a49",
+    "perKey": {
+      "escape": "#bd93f9",
+      "tab": "#bd93f9",
+      "capslock": "#bd93f9",
+      "lshift": "#bd93f9",
+      "rshift": "#bd93f9",
+      "lctrl": "#bd93f9",
+      "lwin": "#bd93f9",
+      "lalt": "#bd93f9",
+      "fn": "#bd93f9",
+      "enter": "#bd93f9",
+      "backspace": "#bd93f9",
+      "menu": "#bd93f9",
+      "delete": "#bd93f9",
+      "digit1": "#8be9fd",
+      "digit2": "#8be9fd",
+      "digit3": "#8be9fd",
+      "digit4": "#8be9fd",
+      "digit5": "#8be9fd",
+      "digit6": "#8be9fd",
+      "digit7": "#8be9fd",
+      "digit8": "#8be9fd",
+      "digit9": "#8be9fd",
+      "digit0": "#8be9fd",
+      "minus": "#8be9fd",
+      "equal": "#8be9fd",
+      "w": "#50fa7b",
+      "a": "#50fa7b",
+      "s": "#50fa7b",
+      "d": "#50fa7b",
+      "arrowup": "#50fa7b",
+      "arrowdown": "#50fa7b",
+      "arrowleft": "#50fa7b",
+      "arrowright": "#50fa7b"
+    }
+  }
+}
