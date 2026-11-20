@@ -4,7 +4,6 @@ PerifMCP is a local-first configuration studio for the **GIM K64 RGB** and compa
 
 The goal is to make the keyboard usable from two interfaces that share one state:
 
-- a web UI inspired by the visual language of `muccaPortfolio2`;
 - an MCP server so an AI agent can inspect, plan, apply and verify changes safely.
 
 > Status: the semantic core, the web UI and the local daemon (HTTP API + MCP server) are in place and tested against a mock backend. Writes to the device stay behind a read-only probe. No firmware update and no vendor VID change are implemented.
