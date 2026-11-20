@@ -6,7 +6,7 @@ import { validateChange } from '../api/semantics'
 import { useApp } from '../state/app'
 import { Button, Field, Panel, Select, TextInput } from './ui'
 
-const MODIFIERS: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui']
+const MODIFIERS: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui', 'altgr']
 
 type DraftStep = { uid: number } & (
   | { type: 'key'; code: string; modifiers: Modifier[] }

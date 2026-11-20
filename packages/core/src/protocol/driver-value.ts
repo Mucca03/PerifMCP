@@ -34,7 +34,7 @@ const TYPE_CONSUMER = 0x0300
 const TYPE_MACRO = 0x0a01
 const TYPE_TEMP_SWITCH_LAYER = 0x0a07
 
-const MODIFIER_ORDER: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui']
+const MODIFIER_ORDER: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui', 'altgr']
 
 /**
  * Which device layer and key table each semantic layer is written to.
@@ -145,8 +145,8 @@ export function driverValueToAssignment(value: number, context: DriverValueDecod
       }
       const code = KEYBOARD_USAGE_BY_VALUE.get(data1)
       if (code === undefined) return undefined
-      // Only the four left-hand modifier bits exist in the semantic model.
-      if ((data2 & 0xf0) !== 0) return undefined
+      // The semantic model has the four left-hand modifiers and AltGr. Right ctrl, shift and gui have no name.
+      if ((data2 & 0xb0) !== 0) return undefined
       const modifiers = MODIFIER_ORDER.filter((modifier) => (data2 & MODIFIER_BITS[modifier]) !== 0)
       return modifiers.length > 0 ? { kind: 'key', code, modifiers } : { kind: 'key', code }
     }

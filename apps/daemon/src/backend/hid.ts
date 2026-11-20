@@ -36,6 +36,18 @@ interface Session {
 }
 
 /**
+ * What this process assumes the keyboard holds at start. Every key table entry is `none`, which the encoder
+ * writes as `0xFFFFFFFF`: "use what the firmware defines". The reference tool's `map` and `unmap` commands do
+ * the same for every key the user did not set, so writing a table built from this config changes only the keys
+ * a plan names, and writing it back with those keys set to `none` returns to the firmware defaults.
+ */
+export function assumedFirmwareConfig(): KeyboardConfig {
+  const config = createDefaultConfig()
+  config.layers.base = {}
+  return config
+}
+
+/**
  * Backend for the real keyboard.
  *
  * Every connection is wrapped with `guardConnection`. Identification uses a `read-only` guard, so only
@@ -54,7 +66,7 @@ export class HidBackend implements DeviceBackend {
   readonly readsBack = false
 
   private session: Session | undefined
-  private shadow: KeyboardConfig = createDefaultConfig()
+  private shadow: KeyboardConfig = assumedFirmwareConfig()
   private queue: Promise<unknown> = Promise.resolve()
 
   get supportsWrites(): boolean {

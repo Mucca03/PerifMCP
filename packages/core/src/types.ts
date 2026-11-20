@@ -2,7 +2,8 @@ export const LAYERS = ['base', 'fn1', 'fn2', 'fn3'] as const
 
 export type Layer = (typeof LAYERS)[number]
 
-export type Modifier = 'ctrl' | 'shift' | 'alt' | 'gui'
+/** `altgr` is the right Alt key. Layouts such as `latam` and `es` need it for characters like `@`. */
+export type Modifier = 'ctrl' | 'shift' | 'alt' | 'gui' | 'altgr'
 
 export type KeyAssignment =
   | { kind: 'key'; code: string; modifiers?: Modifier[] }

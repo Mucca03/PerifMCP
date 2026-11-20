@@ -38,6 +38,15 @@ describe('driver values', () => {
     expect(encode({ kind: 'key', code: 'a', modifiers: ['ctrl', 'shift', 'alt', 'gui'] })).toBe(0x0200040f)
   })
 
+  it('encodes AltGr as the right Alt bit and decodes it back', () => {
+    // `@` on the latam and es layouts is AltGr+Q (latam) or AltGr+2 (es). Q is usage 0x14, right alt is 0x40.
+    const value = encode({ kind: 'key', code: 'q', modifiers: ['altgr'] })
+    expect(value).toBe(0x02001440)
+    expect(driverValueToAssignment(value, decodeContext)).toEqual({ kind: 'key', code: 'q', modifiers: ['altgr'] })
+    expect(encode({ kind: 'key', code: 'digit2', modifiers: ['altgr'] })).toBe(0x02001f40)
+    expect(encode({ kind: 'key', code: 'q', modifiers: ['shift', 'altgr'] })).toBe(0x02001442)
+  })
+
   it('encodes modifier keys, disabled, none, consumer, macro and layer values', () => {
     expect(encode({ kind: 'key', code: 'lctrl' })).toBe(0x02000001)
     expect(encode({ kind: 'key', code: 'lshift' })).toBe(0x02000002)

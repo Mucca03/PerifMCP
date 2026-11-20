@@ -171,6 +171,53 @@ describe('encodeChanges', () => {
   })
 })
 
+describe('remap on top of firmware defaults', () => {
+  const firmware = createDefaultConfig()
+  firmware.layers.base = {}
+  const menuToAt: ConfigChange = {
+    type: 'set-key',
+    layer: 'base',
+    keyId: 'menu',
+    assignment: { kind: 'key', code: 'q', modifiers: ['altgr'] },
+  }
+  const keyTableWords = (steps: WriteStep[]): number[] => {
+    const write = steps.find((step) => step.kind === 'keys')
+    const packets = (write?.packets ?? []).filter((packet) => packet[0] === WRITE_COMMAND.keySet)
+    const words: number[] = []
+    for (const packet of packets) {
+      for (let offset = 8; offset + 4 <= 64; offset += 4) {
+        words.push(((packet[offset] ?? 0) | ((packet[offset + 1] ?? 0) << 8) | ((packet[offset + 2] ?? 0) << 16) | ((packet[offset + 3] ?? 0) << 24)) >>> 0)
+      }
+    }
+    // The last packet is padded with zeros. The table is the first `logicSize` words.
+    return words.slice(0, keyIndex.logicSize)
+  }
+
+  it('sets only the named key and leaves every other entry as the firmware default', () => {
+    const result = encodeChanges(firmware, [menuToAt], context)
+    expect(result.errors).toEqual([])
+    expect(summary(result.steps)).toEqual(['keys@1', 'refresh@1'])
+    const state = decodeWrites(parseWriteSequence(flat(result.steps)), context)
+    expect(state.layers.base?.assignments).toEqual({ menu: { kind: 'key', code: 'q', modifiers: ['altgr'] } })
+    const words = keyTableWords(result.steps)
+    expect(words).toHaveLength(keyIndex.logicSize)
+    expect(words.filter((word) => word !== 0xffffffff)).toEqual([0x02001440])
+    expect(words[keyIndex.logic.menu ?? -1]).toBe(0x02001440)
+  })
+
+  it('goes back to the firmware defaults by setting the key to none', () => {
+    const remapped = encodeChanges(firmware, [menuToAt], context).after
+    const revert = encodeChanges(remapped, [{ type: 'set-key', layer: 'base', keyId: 'menu', assignment: { kind: 'none' } }], context)
+    expect(revert.errors).toEqual([])
+    expect(summary(revert.steps)).toEqual(['keys@1', 'refresh@1'])
+    const state = decodeWrites(parseWriteSequence(flat(revert.steps)), context)
+    expect(state.layers.base?.assignments).toEqual({})
+    const words = keyTableWords(revert.steps)
+    expect(words).toHaveLength(keyIndex.logicSize)
+    expect(words.every((word) => word === 0xffffffff)).toBe(true)
+  })
+})
+
 describe('apply then decode', () => {
   it('reproduces the changed config for supported changes (device view of the diff)', () => {
     const before = createDefaultConfig()

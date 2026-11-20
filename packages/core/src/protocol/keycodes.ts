@@ -106,6 +106,7 @@ export const MODIFIER_BITS = {
   shift: 0x02,
   alt: 0x04,
   gui: 0x08,
+  altgr: 0x40,
 } as const
 
 /** Modifier keys as stand-alone keys. They use the modifier byte, not a usage. */

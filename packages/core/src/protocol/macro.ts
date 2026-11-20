@@ -81,7 +81,7 @@ export function macroActionCount(steps: readonly MacroStep[]): number {
   return count
 }
 
-const MODIFIER_ORDER: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui']
+const MODIFIER_ORDER: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui', 'altgr']
 
 function keyActions(code: string, modifiers: readonly Modifier[] | undefined): Array<Pick<MacroAction, 'keyCode' | 'modifier'>> {
   const keys: Array<Pick<MacroAction, 'keyCode' | 'modifier'>> = []

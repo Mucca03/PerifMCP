@@ -34,7 +34,7 @@ import {
 import { isKeyCode } from '@perifmcp/core'
 import { stripUndefined, validationError, zodIssues } from './service/util.js'
 
-export const MODIFIERS = ['ctrl', 'shift', 'alt', 'gui'] as const
+export const MODIFIERS = ['ctrl', 'shift', 'alt', 'gui', 'altgr'] as const
 
 const LAYOUT_KEY_IDS: ReadonlySet<string> = new Set(DEFAULT_LAYOUT.keys.map((key) => key.id))
 

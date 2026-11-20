@@ -7,7 +7,7 @@ import { assignmentSentence } from '../lib/assignment'
 import { useApp } from '../state/app'
 import { Button, Field, Panel, Select } from './ui'
 
-const MODIFIERS: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui']
+const MODIFIERS: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui', 'altgr']
 type Kind = KeyAssignment['kind']
 const KINDS: readonly Kind[] = ['key', 'macro', 'layer', 'none']
 

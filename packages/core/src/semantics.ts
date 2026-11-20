@@ -25,7 +25,7 @@ import {
   type RGBColor,
 } from './types.js'
 
-const MODIFIERS: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui']
+const MODIFIERS: readonly Modifier[] = ['ctrl', 'shift', 'alt', 'gui', 'altgr']
 const NONE: KeyAssignment = { kind: 'none' }
 
 // ---------------------------------------------------------------------------

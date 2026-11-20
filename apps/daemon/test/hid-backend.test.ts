@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_LAYOUT, buildPacket, createDefaultConfig, isCommandAllowed } from '@perifmcp/core'
 import type { ConfigChange, DeviceSummary, HidConnection, KeyIndexMap } from '@perifmcp/core'
-import { HidBackend, loadModelFile, loadModelRecords, type VendorInterfaceSource } from '../src/backend/index.js'
+import { HidBackend, assumedFirmwareConfig, loadModelFile, loadModelRecords, type VendorInterfaceSource } from '../src/backend/index.js'
 import { KeyboardServiceImpl } from '../src/service/keyboard-service.js'
 import { SnapshotStore } from '../src/service/snapshot-store.js'
 import { expectServiceError, makeTempDir } from './helpers.js'
@@ -134,7 +134,8 @@ describe('HidBackend (fake HID source)', () => {
       backend.writeChanges([{ type: 'set-settings', settings: { nkro: true, osMode: 'win' } }]),
       'write-disabled',
     )
-    expect(await backend.readConfig()).toEqual(createDefaultConfig())
+    expect(await backend.readConfig()).toEqual(assumedFirmwareConfig())
+    expect(Object.keys((await backend.readConfig()).layers.base)).toEqual([])
     expect(source.sent.every((item) => isCommandAllowed('read-only', item.command, item.subCommand))).toBe(true)
   })
 
