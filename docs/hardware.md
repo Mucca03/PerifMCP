@@ -109,3 +109,7 @@ Framing confirmed: each request is sent as 65 bytes, a `0x00` report ID followed
 On the first run the keyboard accepted writes but sent no reply on any of the three interfaces. After unplugging and reconnecting it, it answered every command. If the probe times out again, reconnect the keyboard before debugging the code.
 
 Writes stay disabled. No write command has been sent to this device.
+
+## Local model file
+
+`profiles/local/models.json` (gitignored, mode `0600`) holds the model record and the key index map for this unit (`ModelID 656801886`, name `SK64 RGB` in the GK6X list). It was derived locally from the GK6X data files, which belong to jikedingzhi and must not be committed. `PERIFMCP_MODELS_FILE=profiles/local/models.json` points the daemon at it. The file has the `KeyIndex` section (`logicSize`, `logic`, `location`) that the protocol encoders expect. `loadModelRecords` currently reads only `ModelID`, `Name`, `FWID` and `LEType`, so `KeyIndex` is not wired into the daemon yet.

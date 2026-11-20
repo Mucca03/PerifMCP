@@ -13,3 +13,6 @@ coverage/
 captures/
 profiles/local/
 artifacts/
+
+# Model data derived from the proprietary GK6X Build/Data. Never commit.
+profiles/local/models*.json
