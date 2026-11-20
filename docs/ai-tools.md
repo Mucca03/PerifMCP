@@ -1,6 +1,6 @@
 # AI tool contract
 
-The MCP server is the only supported way for an agent to control the keyboard. The agent describes intent; the daemon validates it, produces a plan and applies the plan only after confirmation.
+The MCP server is the only supported way for an agent to control the keyboard. See [mcp-clients.md](mcp-clients.md) to start it and register it in a client. The agent describes intent; the daemon validates it, produces a plan and applies the plan only after confirmation.
 
 ## Planned tools
 

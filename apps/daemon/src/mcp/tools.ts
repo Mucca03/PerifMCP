@@ -111,7 +111,7 @@ export const TOOLS: ToolRegistry = {
   keyboard_plan_lighting: {
     title: 'Plan lighting',
     description:
-      'Create a plan that changes lighting (zones, per-key colors, base color, effect, brightness and speed in percent). Does not touch the keyboard. Review it with keyboard_preview_plan, then apply it with keyboard_apply_plan.',
+      'Create a plan that changes lighting (zones, per-key colors, base color, effect, brightness and speed in percent). Does not touch the keyboard. Review it with keyboard_preview_plan, then apply it with keyboard_apply_plan. Effects that can be written to a real keyboard today: off, solid, per-key and breathing. The other effects (rainbow, wave, reactive) make apply fail. Breathing uses the main color on every key unless the same request gives zone, base or per-key colors. The keyboard cannot be read back, so check the result by looking at it.',
     inputSchema: lightingPlanInputSchema,
     parse: (raw) => parseInput(lightingPlanInputSchema, raw),
     run: (service, input) => service.planLighting(input),
