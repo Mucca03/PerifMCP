@@ -96,11 +96,11 @@ export interface DeviceSummary {
   id: string
   vendorId: number
   productId: number
-  manufacturer?: string
-  product?: string
-  serialNumber?: string
-  usagePage?: number
-  path?: string
+  manufacturer?: string | undefined
+  product?: string | undefined
+  serialNumber?: string | undefined
+  usagePage?: number | undefined
+  path?: string | undefined
 }
 
 export interface MatrixInfo {
@@ -133,6 +133,8 @@ export type ConfigChange =
 export interface ConfigPlan {
   id: string
   deviceId: string
+  /** `KeyboardStatus.configRevision` when the plan was created. Apply fails if it changed. */
+  baseRevision: string
   createdAt: string
   summary: string
   changes: ConfigChange[]

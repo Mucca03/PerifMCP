@@ -18,7 +18,7 @@ Portable TypeScript with no Node or DOM dependency:
 Planned local service:
 
 - HTTP/JSON API for the web UI
-- MCP server over stdio for agents
+- MCP server over Streamable HTTP at `/mcp`, in the same process that owns the device (a stdio server would be a second process fighting for `/dev/hidraw1`)
 - one shared `KeyboardService` that owns the device connection
 - plans, previews, snapshots, apply and verify
 
