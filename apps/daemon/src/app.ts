@@ -1,5 +1,5 @@
 import type { Hono } from 'hono'
-import { HidBackend, MockBackend, loadModelRecords, type DeviceBackend } from './backend/index.js'
+import { HidBackend, MockBackend, loadModelFile, type DeviceBackend } from './backend/index.js'
 import type { DaemonConfig } from './config.js'
 import { createHttpApp } from './http/app.js'
 import { KeyboardServiceImpl } from './service/keyboard-service.js'
@@ -15,9 +15,13 @@ export interface Daemon {
 
 async function createBackend(config: DaemonConfig): Promise<DeviceBackend> {
   if (config.backend === 'mock') return new MockBackend()
-  const models = config.modelsFile === undefined ? [] : await loadModelRecords(config.modelsFile)
+  const file = config.modelsFile === undefined ? undefined : await loadModelFile(config.modelsFile)
   // The hidraw device is only opened on the first request that needs it.
-  return new HidBackend(new HidrawTransport(), { models })
+  return new HidBackend(new HidrawTransport(), {
+    models: file?.records ?? [],
+    ...(file === undefined ? {} : { keyIndexes: file.keyIndexes }),
+    allowWrites: config.allowWrites,
+  })
 }
 
 /**

@@ -77,6 +77,9 @@ function mismatchErrors(mismatches: ConfigDiffEntry[]): string[] {
   return errors
 }
 
+const NO_READ_BACK_NOTE =
+  'The keyboard has no read-back command. It acknowledged every packet (CRC ok), but the result is not verified. Check it on the keyboard.'
+
 export class KeyboardServiceImpl implements KeyboardService {
   private readonly backend: DeviceBackend
   private readonly snapshots: SnapshotStore
@@ -115,7 +118,9 @@ export class KeyboardServiceImpl implements KeyboardService {
     } else if (info.modelName === undefined) {
       reasons.push('The keyboard model is not recognised')
     }
-    if (!this.backend.supportsWrites) reasons.push('The backend does not support writes yet')
+    if (!this.backend.supportsWrites) {
+      reasons.push(this.backend.writeBlocker?.() ?? 'The backend does not support writes yet')
+    }
 
     let configRevisionValue = 'unavailable'
     if (info !== undefined) {
@@ -360,6 +365,19 @@ export class KeyboardServiceImpl implements KeyboardService {
   async verify(): Promise<VerifyResult> {
     const info = await this.device()
     const config = await this.read()
+    if (!this.backend.readsBack) {
+      return {
+        ok: false,
+        mismatches: [
+          {
+            path: 'device',
+            before: undefined,
+            after: undefined,
+            description: NO_READ_BACK_NOTE,
+          },
+        ],
+      }
+    }
     // Without an apply or restore in this process there is nothing to compare against.
     if (this.expected === undefined || this.expected.deviceId !== deviceIdOf(info)) {
       return { ok: true, mismatches: [] }
@@ -444,6 +462,12 @@ export class KeyboardServiceImpl implements KeyboardService {
         errors.push(`Write failed: ${errorMessage(error)}`)
         return { applied: false, verified: false, errors }
       }
+    }
+
+    if (!this.backend.readsBack) {
+      // The device acknowledged every packet, but nothing can confirm the resulting state.
+      errors.push(NO_READ_BACK_NOTE)
+      return { applied: true, verified: false, errors }
     }
 
     let after: KeyboardConfig

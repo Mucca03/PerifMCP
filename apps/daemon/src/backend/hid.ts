@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
-import { Gk6xClient, KeyboardServiceError, guardConnection } from '@perifmcp/core'
+import { Gk6xClient, KeyboardServiceError, cloneConfig, createDefaultConfig, encodeChanges, guardConnection, validateKeyIndexMap } from '@perifmcp/core'
 import type {
   ConfigChange,
+  KeyIndexMap,
   DeviceInfo,
   DeviceSummary,
   HidConnection,
@@ -19,26 +20,56 @@ export interface VendorInterfaceSource {
 export interface HidBackendOptions {
   /** Model records loaded at runtime. Without a match for the device the model is unknown. */
   models?: ModelRecord[]
+  /** Key index maps by model id, loaded at runtime. A model without one cannot be written. */
+  keyIndexes?: ReadonlyMap<number, KeyIndexMap>
+  /** `PERIFMCP_ALLOW_WRITES=1`. Without it the connection never leaves `read-only`. */
+  allowWrites?: boolean
 }
 
 interface Session {
+  /** Read-only client. Always present. */
   client: Gk6xClient
+  /** Read-write client over the same connection. Only when writes are allowed and the model is mapped. */
+  writer: Gk6xClient | undefined
+  keyIndex: KeyIndexMap | undefined
   info: DeviceInfo
 }
 
 /**
- * Read-only backend for the real keyboard. The connection is always wrapped with
- * `guardConnection` in `read-only` mode, so only identification commands can leave the process.
- * Opened lazily on the first `identify()`.
+ * Backend for the real keyboard.
  *
- * Depends on protocol phase 2: `readConfig` needs the decoders and `writeChanges` the encoders.
+ * Every connection is wrapped with `guardConnection`. Identification uses a `read-only` guard, so only
+ * `0x01` and `0x0c` can leave the process. A `read-write` guard over the same connection exists only when
+ * `allowWrites` is set and the identified model has a key index map. Restart (`0x03`) and the USB identity
+ * change (`0x41`) are blocked in both modes.
+ *
+ * The keyboard has no command to read keys, macros or lighting. `readConfig` therefore returns a shadow:
+ * the factory default this process assumes at start, plus every change written since. It is not a read of
+ * the device, so `readsBack` is false and `verified` can never be true.
+ *
+ * Opened lazily on the first `identify()`.
  */
 export class HidBackend implements DeviceBackend {
   readonly transport = 'hidraw' as const
-  readonly supportsWrites = false
+  readonly readsBack = false
 
   private session: Session | undefined
+  private shadow: KeyboardConfig = createDefaultConfig()
   private queue: Promise<unknown> = Promise.resolve()
+
+  get supportsWrites(): boolean {
+    return this.session?.writer !== undefined
+  }
+
+  writeBlocker(): string | undefined {
+    if (this.options.allowWrites !== true) return undefined
+    const session = this.session
+    if (session === undefined) return 'No keyboard session is open'
+    if (session.keyIndex === undefined) {
+      return `No key index map for model ${session.info.modelId ?? 'unknown'} (set PERIFMCP_MODELS_FILE)`
+    }
+    return undefined
+  }
 
   constructor(
     private readonly source: VendorInterfaceSource,
@@ -54,12 +85,16 @@ export class HidBackend implements DeviceBackend {
       }
       if (this.session) return this.session.info
 
-      const connection = guardConnection(await this.source.openVendorInterface(), { mode: 'read-only' })
-      const client = new Gk6xClient(connection, { models: this.options.models ?? [] })
+      const raw = await this.source.openVendorInterface()
+      const client = new Gk6xClient(guardConnection(raw, { mode: 'read-only' }), { models: this.options.models ?? [] })
       try {
-        await client.ping()
+        // The reference tool sends ping without waiting for a reply, so a missing reply is not fatal.
+        await client.ping(1500).catch(() => undefined)
         const info = await client.info()
-        this.session = { client, info }
+        const keyIndex = info.modelId === undefined ? undefined : this.options.keyIndexes?.get(info.modelId)
+        const mayWrite = this.options.allowWrites === true && info.modelName !== undefined && keyIndex !== undefined
+        const writer = mayWrite ? new Gk6xClient(guardConnection(raw, { mode: 'read-write' })) : undefined
+        this.session = { client, writer, keyIndex, info }
         return info
       } catch (error) {
         await client.close().catch(() => undefined)
@@ -69,14 +104,38 @@ export class HidBackend implements DeviceBackend {
   }
 
   async readConfig(): Promise<KeyboardConfig> {
-    throw new KeyboardServiceError(
-      'device-error',
-      'Reading the key configuration from the keyboard is not implemented yet (needs protocol decoders)',
-    )
+    return cloneConfig(this.shadow)
   }
 
-  async writeChanges(_changes: ConfigChange[]): Promise<void> {
-    throw new KeyboardServiceError('write-disabled', 'The hidraw backend is read-only')
+  writeChanges(changes: ConfigChange[]): Promise<void> {
+    return this.serial(async () => {
+      const session = this.session
+      const writer = session?.writer
+      if (session === undefined || writer === undefined || session.keyIndex === undefined) {
+        throw new KeyboardServiceError('write-disabled', this.writeBlocker() ?? 'The hidraw backend is read-only')
+      }
+
+      const encoded = encodeChanges(this.shadow, changes, { keyIndex: session.keyIndex })
+      if (encoded.errors.length > 0) {
+        throw new KeyboardServiceError('validation', encoded.errors.join('; '), { errors: encoded.errors })
+      }
+      if (encoded.unsupported.length > 0) {
+        throw new KeyboardServiceError('validation', `Cannot write yet: ${encoded.unsupported.join('; ')}`, {
+          unsupported: encoded.unsupported,
+        })
+      }
+
+      try {
+        for (const step of encoded.steps) await writer.writePackets(step.packets)
+      } catch (error) {
+        // The keyboard may hold a half-written table. The shadow is kept as it was.
+        throw new KeyboardServiceError(
+          'device-error',
+          `Write interrupted, the keyboard may be partly written: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+      this.shadow = encoded.after
+    })
   }
 
   close(): Promise<void> {
@@ -117,4 +176,44 @@ export async function loadModelRecords(path: string): Promise<ModelRecord[]> {
     })
   }
   return records
+}
+
+export interface ModelFile {
+  records: ModelRecord[]
+  keyIndexes: Map<number, KeyIndexMap>
+}
+
+/**
+ * Loads `PERIFMCP_MODELS_FILE`: the model records plus the optional `KeyIndex` of each one
+ * (`logicSize`, `logic`, `location`). The file is local, derived from vendor data and never committed.
+ * A `KeyIndex` that fails `validateKeyIndexMap` is rejected, so a bad map cannot reach an encoder.
+ */
+export async function loadModelFile(path: string): Promise<ModelFile> {
+  const records = await loadModelRecords(path)
+  const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown[]
+  const keyIndexes = new Map<number, KeyIndexMap>()
+  for (const item of parsed) {
+    if (typeof item !== 'object' || item === null) continue
+    const record = item as Record<string, unknown>
+    if (typeof record.ModelID !== 'number' || record.KeyIndex === undefined) continue
+    const index = record.KeyIndex as Record<string, unknown>
+    const map: KeyIndexMap = {
+      logicSize: typeof index.logicSize === 'number' ? index.logicSize : 0,
+      logic: toCodeTable(index.logic),
+      location: toCodeTable(index.location),
+    }
+    const errors = validateKeyIndexMap(map)
+    if (errors.length > 0) throw new Error(`Invalid KeyIndex for model ${record.ModelID}: ${errors.join('; ')}`)
+    keyIndexes.set(record.ModelID, map)
+  }
+  return { records, keyIndexes }
+}
+
+function toCodeTable(value: unknown): Record<string, number> {
+  const table: Record<string, number> = {}
+  if (typeof value !== 'object' || value === null) return table
+  for (const [key, code] of Object.entries(value)) {
+    if (typeof code === 'number') table[key] = code
+  }
+  return table
 }

@@ -21,6 +21,7 @@ function defaultMockConfig(): KeyboardConfig {
 /** In-memory keyboard for tests and development. Never touches hardware. */
 export class MockBackend implements DeviceBackend {
   readonly transport = 'mock' as const
+  readonly readsBack = true
   supportsWrites: boolean
   connected: boolean
   modelKnown: boolean

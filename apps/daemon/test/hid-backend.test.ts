@@ -1,9 +1,9 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { KeyboardServiceError, buildPacket, isCommandAllowed } from '@perifmcp/core'
-import type { DeviceSummary, HidConnection } from '@perifmcp/core'
-import { HidBackend, loadModelRecords, type VendorInterfaceSource } from '../src/backend/index.js'
+import { DEFAULT_LAYOUT, buildPacket, createDefaultConfig, isCommandAllowed } from '@perifmcp/core'
+import type { ConfigChange, DeviceSummary, HidConnection, KeyIndexMap } from '@perifmcp/core'
+import { HidBackend, loadModelFile, loadModelRecords, type VendorInterfaceSource } from '../src/backend/index.js'
 import { KeyboardServiceImpl } from '../src/service/keyboard-service.js'
 import { SnapshotStore } from '../src/service/snapshot-store.js'
 import { expectServiceError, makeTempDir } from './helpers.js'
@@ -61,6 +61,33 @@ function fakeSource(modelId = 0x1234): FakeSource {
   return source
 }
 
+const MODEL = { ModelID: 0x1234, Name: 'Test Model' }
+
+/** Synthetic codes for the real layout keys. The real map is local model data and never in the repo. */
+function syntheticKeyIndex(): KeyIndexMap {
+  const logic: Record<string, number> = {}
+  const location: Record<string, number> = {}
+  DEFAULT_LAYOUT.keys.forEach((key, index) => {
+    logic[key.id] = index
+    location[key.id] = index
+  })
+  return { logicSize: 112, logic, location }
+}
+
+const KEY_INDEXES: ReadonlyMap<number, KeyIndexMap> = new Map([[0x1234, syntheticKeyIndex()]])
+
+const LIGHT_ESC: ConfigChange[] = [
+  {
+    type: 'set-lighting',
+    lighting: {
+      ...createDefaultConfig().lighting,
+      enabled: true,
+      effect: 'per-key',
+      perKey: { escape: { r: 134, g: 239, b: 172 } },
+    },
+  },
+]
+
 describe('HidBackend (fake HID source)', () => {
   it('identifies the keyboard using only read-only commands', async () => {
     const source = fakeSource()
@@ -96,33 +123,105 @@ describe('HidBackend (fake HID source)', () => {
     expect(source.closed).toBe(1)
   })
 
-  it('cannot write and cannot read the config yet', async () => {
-    const backend = new HidBackend(fakeSource())
+  it('stays read-only without allowWrites and returns the assumed default config', async () => {
+    const source = fakeSource()
+    const backend = new HidBackend(source, { models: [MODEL], keyIndexes: KEY_INDEXES })
     expect(backend.supportsWrites).toBe(false)
-    await expect(backend.writeChanges([{ type: 'set-settings', settings: { nkro: true, osMode: 'win' } }])).rejects.toMatchObject({
-      code: 'write-disabled',
-    })
-    await expect(backend.readConfig()).rejects.toBeInstanceOf(KeyboardServiceError)
+    expect(backend.readsBack).toBe(false)
+    await backend.identify()
+    expect(backend.supportsWrites).toBe(false)
+    await expectServiceError(
+      backend.writeChanges([{ type: 'set-settings', settings: { nkro: true, osMode: 'win' } }]),
+      'write-disabled',
+    )
+    expect(await backend.readConfig()).toEqual(createDefaultConfig())
+    expect(source.sent.every((item) => isCommandAllowed('read-only', item.command, item.subCommand))).toBe(true)
   })
 
-  it('keeps writes disabled in the service even with allowWrites and a known model', async () => {
+  it('does not enable writes for a model without a key index map', async () => {
     const source = fakeSource()
-    const backend = new HidBackend(source, { models: [{ ModelID: 0x1234, Name: 'Test Model' }] })
+    const backend = new HidBackend(source, { models: [MODEL], allowWrites: true })
+    await backend.identify()
+    expect(backend.supportsWrites).toBe(false)
+    expect(backend.writeBlocker()).toMatch(/PERIFMCP_MODELS_FILE/)
+    await expectServiceError(backend.writeChanges(LIGHT_ESC), 'write-disabled')
+  })
+
+  it('reports the missing read-back reason in the service status', async () => {
     const service = new KeyboardServiceImpl({
-      backend,
+      backend: new HidBackend(fakeSource(), { models: [MODEL], allowWrites: true }),
       snapshots: new SnapshotStore(await makeTempDir()),
+      allowWrites: true,
+    })
+    const status = await service.status()
+    expect(status.writeEnabled).toBe(false)
+    expect(status.writeDisabledReasons.join(' ')).toMatch(/key index map/)
+    expect(status.device?.serialNumber).toBeUndefined()
+    await expectServiceError(service.applyPlan('x', true), 'write-disabled')
+  })
+
+  it('writes lighting after a snapshot and never claims it was verified', async () => {
+    const source = fakeSource()
+    const snapshots = new SnapshotStore(await makeTempDir())
+    const service = new KeyboardServiceImpl({
+      backend: new HidBackend(source, { models: [MODEL], keyIndexes: KEY_INDEXES, allowWrites: true }),
+      snapshots,
       allowWrites: true,
     })
 
     const status = await service.status()
-    expect(status.transport).toBe('hidraw')
-    expect(status.connection).toBe('connected')
-    expect(status.writeEnabled).toBe(false)
-    expect(status.configRevision).toBe('unavailable')
-    expect(status.device?.serialNumber).toBeUndefined()
-    await expectServiceError(service.applyPlan('x', true), 'write-disabled')
-    await expectServiceError(service.getConfig(), 'device-error')
+    expect(status.writeEnabled).toBe(true)
+    expect(status.configRevision).not.toBe('unavailable')
+
+    const plan = await service.planLighting({ perKey: { escape: '#86efac' } })
+    const result = await service.applyPlan(plan.id, true)
+
+    expect(result.applied).toBe(true)
+    expect(result.verified).toBe(false)
+    expect(result.errors.join(' ')).toMatch(/no read-back command/)
+    expect(result.snapshotId).toBeDefined()
+    expect((await service.listSnapshots()).map((item) => item.id)).toContain(result.snapshotId)
+
+    const commands = source.sent.map((item) => item.command)
+    expect(commands).toContain(0x27)
+    // Only lighting and the refresh are written for a lighting plan. No key table, no restart, no USB identity.
+    expect(commands).not.toContain(0x22)
+    expect(commands).not.toContain(0x03)
+    expect(commands).not.toContain(0x41)
+    // Snapshot data first: the first non-identification command comes after the last read-only one.
+    const firstWrite = source.sent.findIndex((item) => !isCommandAllowed('read-only', item.command, item.subCommand))
+    expect(firstWrite).toBeGreaterThan(0)
+
+    const verify = await service.verify()
+    expect(verify.ok).toBe(false)
+    expect(verify.mismatches[0]?.description).toMatch(/no read-back command/)
+  })
+
+  it('refuses a lighting effect it cannot encode, without sending a write', async () => {
+    const source = fakeSource()
+    const service = new KeyboardServiceImpl({
+      backend: new HidBackend(source, { models: [MODEL], keyIndexes: KEY_INDEXES, allowWrites: true }),
+      snapshots: new SnapshotStore(await makeTempDir()),
+      allowWrites: true,
+    })
+    const plan = await service.planLighting({ effect: 'breathing', color: '#86efac' })
+    const result = await service.applyPlan(plan.id, true)
+    expect(result.applied).toBe(false)
+    expect(result.errors.join(' ')).toMatch(/Cannot write yet.*breathing/)
     expect(source.sent.every((item) => isCommandAllowed('read-only', item.command, item.subCommand))).toBe(true)
+  })
+
+  it('loads and validates the key index of a model file', async () => {
+    const dir = await makeTempDir()
+    const good = join(dir, 'models.json')
+    await writeFile(good, JSON.stringify([{ ModelID: 7, Name: 'M', KeyIndex: KEY_INDEXES.get(0x1234) }]))
+    const loaded = await loadModelFile(good)
+    expect(loaded.records.map((record) => record.ModelID)).toEqual([7])
+    expect(loaded.keyIndexes.get(7)?.logicSize).toBe(112)
+
+    const bad = join(dir, 'bad.json')
+    await writeFile(bad, JSON.stringify([{ ModelID: 7, KeyIndex: { logicSize: 4, logic: { a: 1, b: 1 }, location: {} } }]))
+    await expect(loadModelFile(bad)).rejects.toThrow(/Invalid KeyIndex/)
   })
 
   it('reports an unknown model when no record matches', async () => {
