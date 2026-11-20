@@ -461,7 +461,7 @@ export class KeyboardServiceImpl implements KeyboardService {
   private async requireWriteEnabled(): Promise<void> {
     const status = await this.status()
     if (!status.writeEnabled) {
-      throw new KeyboardServiceError('write-disabled', `Writes are disabled: ${status.writeDisabledReasons.join('; ')}`, {
+      throw new KeyboardServiceError('write-disabled', `Cannot write: ${status.writeDisabledReasons.join('; ')}`, {
         reasons: status.writeDisabledReasons,
       })
     }
