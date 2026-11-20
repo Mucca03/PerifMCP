@@ -1,5 +1,6 @@
 import { COMMAND, INFO, decodeDeviceId, decodeMatrix, decodeModelId, decodeVersion, type VersionInfo } from './protocol/commands.js'
-import { buildPacket, parsePacket, type Packet } from './protocol/packet.js'
+import { PACKET_SIZE, buildPacket, parsePacket, type Packet } from './protocol/packet.js'
+import { isCommandAllowed } from './safety.js'
 import type { HidConnection } from './transport.js'
 import type { DeviceInfo } from './types.js'
 
@@ -51,6 +52,36 @@ export class Gk6xClient {
       throw new Error(`Unexpected response command: expected 0x${command.toString(16)}, got 0x${parsed.command.toString(16)}`)
     }
     return parsed
+  }
+
+  /**
+   * Sends prebuilt packets (from the encoders in `protocol/`) one by one and checks each response.
+   *
+   * All packets are checked before the first one is sent: 64 bytes, valid CRC, and a command that
+   * `isCommandAllowed('read-write', ...)` accepts, so a bad packet at the end of a sequence cannot leave a
+   * half-written table behind. The connection should still be wrapped with `guardConnection`, which
+   * enforces the access mode at send time. The response CRC is always verified for writes.
+   */
+  async writePackets(packets: readonly Uint8Array[], timeoutMs = this.timeoutMs): Promise<void> {
+    packets.forEach((raw, index) => {
+      if (raw.length !== PACKET_SIZE) {
+        throw new RangeError(`packets[${index}] has ${raw.length} bytes, expected ${PACKET_SIZE}`)
+      }
+      const packet = parsePacket(raw, true)
+      if (!isCommandAllowed('read-write', packet.command, packet.subCommand)) {
+        throw new RangeError(
+          `packets[${index}]: command 0x${packet.command.toString(16)}/0x${packet.subCommand.toString(16)} is not a known write command`,
+        )
+      }
+    })
+
+    for (const raw of packets) {
+      const sent = parsePacket(raw)
+      const response = parsePacket(await this.connection.send(raw, timeoutMs), true)
+      if (response.command !== sent.command) {
+        throw new Error(`Unexpected response command: expected 0x${sent.command.toString(16)}, got 0x${response.command.toString(16)}`)
+      }
+    }
   }
 
   async ping(timeoutMs = 5000): Promise<void> {
