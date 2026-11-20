@@ -1,0 +1,20 @@
+{
+  "name": "perifmcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first keyboard configuration for GK6X-family boards, with a web UI and MCP tools.",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.1"
+  }
+}
