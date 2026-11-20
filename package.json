@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Local-first keyboard configuration for GK6X-family boards, with a web UI and MCP tools.",
+  "license": "MIT",
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "onlyBuiltDependencies": [

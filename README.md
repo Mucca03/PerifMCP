@@ -66,7 +66,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` starts the web UI and the daemon. Without a keyboard the daemon uses a mock backend, so the full plan → preview → apply → verify flow works offline. To check the protocol and services:
+`pnpm dev` starts the web UI and the daemon. Without a keyboard the daemon uses a mock backend, so the full plan → preview → apply → verify flow works offline and never touches hardware. See [Enabling device writes](#enabling-device-writes) to write to a real keyboard. To check the protocol and services:
 
 ```bash
 pnpm test
@@ -102,6 +102,34 @@ An AI agent talks to the daemon's MCP server with semantic tools, never raw HID 
 
 Shareable lighting profiles live in `profiles/examples/`. Each is a plan input for `keyboard_plan_lighting` (or `POST /api/plans/lighting`); see `profiles/README.md`.
 
+## Enabling device writes
+
+By default the daemon runs the **mock** backend: plans, previews and applies work, but nothing reaches the keyboard. `pnpm test` runs against this mock, so a test run never touches your hardware.
+
+Writing to the real keyboard (remapping keys, changing colors, storing macros) is **off unless you turn it on**. The daemon reports `read-write` only when all three of these are true:
+
+1. `PERIFMCP_BACKEND=hid` — use the real HID backend instead of the mock.
+2. `PERIFMCP_ALLOW_WRITES=1` — opt in to writes. Without it the connection stays `read-only`.
+3. `PERIFMCP_MODELS_FILE=/path/to/models.json` — a model file with the key index for your board, supplied by you and never committed.
+
+```bash
+# Read-write session against the connected keyboard
+PERIFMCP_BACKEND=hid \
+PERIFMCP_ALLOW_WRITES=1 \
+PERIFMCP_MODELS_FILE=/path/to/models.json \
+pnpm --filter @perifmcp/daemon dev
+```
+
+Check the current mode any time with `keyboard_status` or `GET /api/status`; it returns `read-only` or `read-write` and lists why writes are blocked.
+
+> **Once writes are enabled, any client of the daemon — including an AI agent over MCP — can change key assignments, lighting and macros on the physical keyboard.** Keep the mock backend for development, enable the HID backend only when you intend to write, and take a snapshot (`keyboard_snapshot`) first so every change is reversible. Enabling writes is at your own risk.
+
+## Disclaimer
+
+Not affiliated with Semitek, GIM or Sharkoon. This is an independent, community project. Use at your own risk.
+
 ## License
 
-The code license is pending confirmation. The model/lighting data from the original vendor and from `pixeltris/GK6X` is **not** included in this repository and is not covered by any MIT grant.
+The code in this repository is released under the **MIT License** (see [`LICENSE`](./LICENSE)).
+
+This grant covers only the PerifMCP source code. It does **not** cover the keyboard vendor's firmware or model/lighting data, nor the `Build/Data` directory from [`pixeltris/GK6X`](https://github.com/pixeltris/GK6X). That data is not included in this repository and is not redistributed here; obtain it from its own source under its own terms.
