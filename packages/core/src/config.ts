@@ -19,8 +19,9 @@ export function createDefaultConfig(layout: KeyboardLayout = DEFAULT_LAYOUT): Ke
       enabled: false,
       effect: 'off',
       color: { r: 134, g: 239, b: 172 },
-      brightness: 180,
-      speed: 2,
+      // Percent, 0-100. Device units are chosen by the encoder.
+      brightness: 100,
+      speed: 50,
       direction: 0,
       perKey: {},
     },
