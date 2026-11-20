@@ -61,7 +61,7 @@ export const hexColorSchema = z.templateLiteral(['#', z.string().regex(/^[0-9a-f
 
 const percentSchema = z.number().int().min(0).max(100)
 
-const idSchema = z.string().min(1).max(MAX_ID_LENGTH)
+export const idSchema = z.string().min(1).max(MAX_ID_LENGTH)
 
 const reasonSchema = z
   .string()
