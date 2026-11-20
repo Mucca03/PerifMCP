@@ -33,7 +33,9 @@ describe('MockApiClient obeys the service rules', () => {
     const plan = await api.planKeys({ layer: 'base', assignments: { a: { kind: 'none' } } })
     expect(await code(api.applyPlan(plan.id, { confirm: false as unknown as true }))).toBe('confirmation-required')
     expect(await code(api.applyPlan(plan.id, { confirm: true }))).toBe('write-disabled')
-    expect(await code(api.createSnapshot({}))).toBe('write-disabled')
+    expect(await code(api.restoreSnapshot('snap-1', { confirm: true }))).toBe('write-disabled')
+    // A snapshot only reads the configuration, so it is allowed in read-only mode.
+    expect((await api.createSnapshot({})).reason).toBe('manual snapshot')
     expect((await api.status()).writeDisabledReasons.length).toBeGreaterThan(0)
     api.setMode('read-write')
     expect(await code(api.applyPlan('plan-999', { confirm: true }))).toBe('plan-not-found')

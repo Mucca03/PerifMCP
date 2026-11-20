@@ -162,7 +162,6 @@ export class MockApiClient implements ApiClient {
   listSnapshots: ApiClient['listSnapshots'] = async () => this.snapshots.map(toMeta).reverse()
 
   createSnapshot: ApiClient['createSnapshot'] = async (body) => {
-    this.requireWritable()
     return toMeta(this.takeSnapshot(body.reason?.trim() || 'manual snapshot'))
   }
 
@@ -209,6 +208,7 @@ export class MockApiClient implements ApiClient {
       },
       activeLayer: 'base',
       configRevision: this.revision(),
+      configSource: 'device',
     }
   }
 

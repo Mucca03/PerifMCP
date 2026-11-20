@@ -1,4 +1,5 @@
 import { KeyInspector } from '../components/KeyInspector'
+import { ConfigSourceNotice } from '../components/ConfigSourceNotice'
 import { KeyboardView } from '../components/KeyboardView'
 import { LayerSelector } from '../components/LayerSelector'
 import { PlanList } from '../components/PlanList'
@@ -12,6 +13,7 @@ export function KeysPage() {
 
   return (
     <div className="grid gap-6">
+      <ConfigSourceNotice />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <LayerSelector layer={layer} onChange={setLayer} />
         {pending.changedKeys ? (

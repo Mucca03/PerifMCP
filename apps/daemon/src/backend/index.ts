@@ -9,3 +9,4 @@ export {
   type ModelFile,
   type VendorInterfaceSource,
 } from './hid.js'
+export { FileConfigStateStore, parseStateConfig, type ConfigStateStore } from './state-store.js'

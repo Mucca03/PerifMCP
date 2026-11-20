@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { Gk6xClient, KeyboardServiceError, cloneConfig, createDefaultConfig, encodeChanges, guardConnection, validateKeyIndexMap } from '@perifmcp/core'
 import type {
   ConfigChange,
+  ConfigSource,
   KeyIndexMap,
   DeviceInfo,
   DeviceSummary,
@@ -9,6 +10,7 @@ import type {
   KeyboardConfig,
   ModelRecord,
 } from '@perifmcp/core'
+import type { ConfigStateStore } from './state-store.js'
 import type { DeviceBackend } from './types.js'
 
 /** What `HidrawTransport` offers. Tests pass a fake, so no test opens `/dev/hidraw*`. */
@@ -24,6 +26,8 @@ export interface HidBackendOptions {
   keyIndexes?: ReadonlyMap<number, KeyIndexMap>
   /** `PERIFMCP_ALLOW_WRITES=1`. Without it the connection never leaves `read-only`. */
   allowWrites?: boolean
+  /** Remembers the last written configuration across restarts. Without it every start assumes the defaults. */
+  stateStore?: ConfigStateStore
 }
 
 interface Session {
@@ -57,7 +61,8 @@ export function assumedFirmwareConfig(): KeyboardConfig {
  *
  * The keyboard has no command to read keys, macros or lighting. `readConfig` therefore returns a shadow:
  * the factory default this process assumes at start, plus every change written since. It is not a read of
- * the device, so `readsBack` is false and `verified` can never be true.
+ * the device, so `readsBack` is false and `verified` can never be true. With a `stateStore` the shadow also
+ * survives restarts: it is saved after every successful write and loaded when the model is identified.
  *
  * Opened lazily on the first `identify()`.
  */
@@ -67,7 +72,13 @@ export class HidBackend implements DeviceBackend {
 
   private session: Session | undefined
   private shadow: KeyboardConfig = assumedFirmwareConfig()
+  private configOrigin: ConfigSource = 'assumed-default'
+  private restored = false
   private queue: Promise<unknown> = Promise.resolve()
+
+  configSource(): ConfigSource {
+    return this.configOrigin
+  }
 
   get supportsWrites(): boolean {
     return this.session?.writer !== undefined
@@ -107,6 +118,7 @@ export class HidBackend implements DeviceBackend {
         const mayWrite = this.options.allowWrites === true && info.modelName !== undefined && keyIndex !== undefined
         const writer = mayWrite ? new Gk6xClient(guardConnection(raw, { mode: 'read-write' })) : undefined
         this.session = { client, writer, keyIndex, info }
+        await this.restoreShadow(info.modelId)
         return info
       } catch (error) {
         await client.close().catch(() => undefined)
@@ -147,7 +159,34 @@ export class HidBackend implements DeviceBackend {
         )
       }
       this.shadow = encoded.after
+      this.configOrigin = 'last-written'
+      await this.persistShadow(session.info.modelId)
     })
+  }
+
+  /** Loads the saved configuration once per process, the first time the model is known. */
+  private async restoreShadow(modelId: number | undefined): Promise<void> {
+    if (this.restored || modelId === undefined || this.options.stateStore === undefined) return
+    this.restored = true
+    try {
+      const saved = await this.options.stateStore.load(modelId)
+      if (saved !== undefined) {
+        this.shadow = saved
+        this.configOrigin = 'last-written'
+      }
+    } catch (error) {
+      console.warn(`Could not load the saved configuration: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /** The keyboard already accepted the write, so a failed save is reported but does not fail the write. */
+  private async persistShadow(modelId: number | undefined): Promise<void> {
+    if (modelId === undefined || this.options.stateStore === undefined) return
+    try {
+      await this.options.stateStore.save(modelId, this.shadow)
+    } catch (error) {
+      console.warn(`Could not save the configuration: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   close(): Promise<void> {

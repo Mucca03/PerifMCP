@@ -50,6 +50,10 @@ export function Header({ route }: { route: RoutePath }) {
           <dd className={status?.mode === 'read-write' ? 'text-brand' : 'text-amber-200'}>{status?.mode ?? 'unknown'}</dd>
         </div>
         <div className="flex gap-1">
+          <dt>config</dt>
+          <dd className="text-white">{status?.configSource ?? '-'}</dd>
+        </div>
+        <div className="flex gap-1">
           <dt>transport</dt>
           <dd className="text-white">{status?.transport ?? '-'}</dd>
         </div>

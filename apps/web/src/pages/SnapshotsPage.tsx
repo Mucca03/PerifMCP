@@ -12,6 +12,7 @@ export function SnapshotsPage() {
   const [error, setError] = useState<string>()
   const [verifyText, setVerifyText] = useState<{ ok: boolean; mismatches: ConfigDiffEntry[] }>()
 
+  // A snapshot only reads the configuration, so it works in read-only mode. Restore still needs writes.
   const reasonText = writeEnabled ? undefined : (writeReasons.join(' ') || 'Writes are disabled.')
 
   const run = async (action: () => Promise<void>) => {
@@ -77,14 +78,13 @@ export function SnapshotsPage() {
           <Field label="reason (optional)">
             <TextInput value={reason} onChange={(e) => setReason(e.target.value)} maxLength={120} className="w-72" />
           </Field>
-          <Button type="submit" variant="primary" disabled={!writeEnabled || busy} title={reasonText}>
+          <Button type="submit" variant="primary" disabled={busy}>
             Create snapshot
           </Button>
           <Button onClick={() => void verify()} disabled={busy}>
             Verify device
           </Button>
         </form>
-        {reasonText ? <p className="mt-2 text-xs text-gray-500">Disabled: {reasonText}</p> : null}
         {verifyText ? (
           <div role="status" className="mt-3 text-xs">
             {verifyText.ok ? (

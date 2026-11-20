@@ -1,5 +1,5 @@
 import type { Hono } from 'hono'
-import { HidBackend, MockBackend, loadModelFile, type DeviceBackend } from './backend/index.js'
+import { FileConfigStateStore, HidBackend, MockBackend, loadModelFile, type DeviceBackend } from './backend/index.js'
 import type { DaemonConfig } from './config.js'
 import { createHttpApp } from './http/app.js'
 import { KeyboardServiceImpl } from './service/keyboard-service.js'
@@ -21,6 +21,7 @@ async function createBackend(config: DaemonConfig): Promise<DeviceBackend> {
     models: file?.records ?? [],
     ...(file === undefined ? {} : { keyIndexes: file.keyIndexes }),
     allowWrites: config.allowWrites,
+    stateStore: new FileConfigStateStore(config.stateDir),
   })
 }
 

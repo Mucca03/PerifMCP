@@ -1,5 +1,5 @@
 import { createDefaultConfig, KeyboardServiceError } from '@perifmcp/core'
-import type { ConfigChange, DeviceInfo, KeyboardConfig } from '@perifmcp/core'
+import type { ConfigChange, ConfigSource, DeviceInfo, KeyboardConfig } from '@perifmcp/core'
 import { applyChanges } from '@perifmcp/core'
 import type { DeviceBackend } from './types.js'
 
@@ -22,6 +22,10 @@ function defaultMockConfig(): KeyboardConfig {
 export class MockBackend implements DeviceBackend {
   readonly transport = 'mock' as const
   readonly readsBack = true
+
+  configSource(): ConfigSource {
+    return 'device'
+  }
   supportsWrites: boolean
   connected: boolean
   modelKnown: boolean

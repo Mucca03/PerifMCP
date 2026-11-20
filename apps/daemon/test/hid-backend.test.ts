@@ -1,9 +1,16 @@
-import { writeFile } from 'node:fs/promises'
+import { stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_LAYOUT, buildPacket, createDefaultConfig, isCommandAllowed } from '@perifmcp/core'
 import type { ConfigChange, DeviceSummary, HidConnection, KeyIndexMap } from '@perifmcp/core'
-import { HidBackend, assumedFirmwareConfig, loadModelFile, loadModelRecords, type VendorInterfaceSource } from '../src/backend/index.js'
+import {
+  FileConfigStateStore,
+  HidBackend,
+  assumedFirmwareConfig,
+  loadModelFile,
+  loadModelRecords,
+  type VendorInterfaceSource,
+} from '../src/backend/index.js'
 import { KeyboardServiceImpl } from '../src/service/keyboard-service.js'
 import { SnapshotStore } from '../src/service/snapshot-store.js'
 import { expectServiceError, makeTempDir } from './helpers.js'
@@ -87,6 +94,57 @@ const LIGHT_ESC: ConfigChange[] = [
     },
   },
 ]
+
+describe('HidBackend saved configuration', () => {
+  it('reports where the configuration comes from', async () => {
+    const dir = await makeTempDir()
+    const options = { models: [MODEL], keyIndexes: KEY_INDEXES, allowWrites: true, stateStore: new FileConfigStateStore(dir) }
+
+    const first = new HidBackend(fakeSource(), options)
+    await first.identify()
+    expect(first.configSource()).toBe('assumed-default')
+    await first.writeChanges(LIGHT_ESC)
+    expect(first.configSource()).toBe('last-written')
+    await first.close()
+
+    // A new process: the saved configuration comes back, so the lighting is not "assumed off" any more.
+    const second = new HidBackend(fakeSource(), options)
+    await second.identify()
+    expect(second.configSource()).toBe('last-written')
+    const restored = await second.readConfig()
+    expect(restored.lighting.effect).toBe('per-key')
+    expect(restored.lighting.perKey.escape).toEqual({ r: 134, g: 239, b: 172 })
+  })
+
+  it('keeps the saved file private and ignores one that is damaged or invalid', async () => {
+    const dir = await makeTempDir()
+    const store = new FileConfigStateStore(dir)
+    const config = createDefaultConfig()
+    await store.save(0x1234, config)
+    const file = join(dir, 'state', `${0x1234}.json`)
+    expect((await stat(file)).mode & 0o777).toBe(0o600)
+    expect(await store.load(0x1234)).toEqual(config)
+    expect(await store.load(0x9999)).toBeUndefined()
+
+    await writeFile(file, '{ not json')
+    expect(await store.load(0x1234)).toBeUndefined()
+
+    const invalid = createDefaultConfig()
+    invalid.lighting.brightness = 500
+    await writeFile(file, JSON.stringify({ version: 1, savedAt: 'x', modelId: 0x1234, config: invalid }))
+    expect(await store.load(0x1234)).toBeUndefined()
+
+    // A file saved for another model is not used.
+    await writeFile(file, JSON.stringify({ version: 1, savedAt: 'x', modelId: 7, config }))
+    expect(await store.load(0x1234)).toBeUndefined()
+  })
+
+  it('reports a read-only start without a state store as assumed defaults', async () => {
+    const backend = new HidBackend(fakeSource(), { models: [MODEL] })
+    await backend.identify()
+    expect(backend.configSource()).toBe('assumed-default')
+  })
+})
 
 describe('HidBackend (fake HID source)', () => {
   it('identifies the keyboard using only read-only commands', async () => {

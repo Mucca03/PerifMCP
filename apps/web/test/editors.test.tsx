@@ -95,10 +95,16 @@ describe('lighting editor', () => {
 })
 
 describe('snapshots page', () => {
-  it('disables snapshot actions in read-only mode and shows the reason', async () => {
-    await renderApp({ mode: 'read-only', route: '/snapshots' })
-    expect(await screen.findByRole('button', { name: 'Create snapshot' })).toBeDisabled()
-    expect(screen.getByText(/Disabled: .*read-only/i)).toBeInTheDocument()
+  it('allows creating a snapshot in read-only mode, but not restoring one', async () => {
+    const user = userEvent.setup()
+    const client = new MockApiClient({ seedAgentPlan: false, mode: 'read-only' })
+    await renderApp({ client, route: '/snapshots' })
+    const create = await screen.findByRole('button', { name: 'Create snapshot' })
+    expect(create).toBeEnabled()
+    await user.click(create)
+    const item = (await screen.findByText('manual snapshot')).closest('li') as HTMLElement
+    expect((await client.listSnapshots()).length).toBe(1)
+    expect(within(item).getByRole('button', { name: 'Restore…' })).toBeDisabled()
   })
 
   it('restores only after a confirm step and shows the safety snapshot', async () => {

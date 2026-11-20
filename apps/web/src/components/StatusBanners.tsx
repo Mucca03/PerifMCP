@@ -12,8 +12,8 @@ export function StatusBanners() {
       ) : null}
       {status && !writeEnabled ? (
         <div role="status" aria-label="Read-only mode" className="border border-amber-300 p-3 text-xs text-amber-200">
-          <strong>{status.mode === 'read-only' ? 'read-only mode' : 'writes disabled'}:</strong> planning and previews work. Apply,
-          restore and snapshot are disabled.
+          <strong>{status.mode === 'read-only' ? 'read-only mode' : 'writes disabled'}:</strong> planning and previews work. Apply and
+          restore are disabled. Snapshots are still allowed.
           {writeReasons.length > 0 ? (
             <ul className="mt-1 list-inside list-disc">
               {writeReasons.map((r) => (

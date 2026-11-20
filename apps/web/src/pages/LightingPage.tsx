@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ConfigSourceNotice } from '../components/ConfigSourceNotice'
 import { KeyboardView } from '../components/KeyboardView'
 import { LayerSelector } from '../components/LayerSelector'
 import { LightingEditor, draftFromLighting, useDraftLighting, type LightingDraft } from '../components/LightingEditor'
@@ -16,6 +17,7 @@ export function LightingPage() {
 
   return (
     <div className="grid gap-6">
+      <ConfigSourceNotice />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <LayerSelector layer={layer} onChange={setLayer} />
         <p className="text-xs text-gray-400">

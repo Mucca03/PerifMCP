@@ -30,6 +30,15 @@ export type AccessMode = 'read-only' | 'read-write'
 
 export type ConnectionState = 'disconnected' | 'connected' | 'unknown-model'
 
+/**
+ * Where the configuration returned by `getConfig()` comes from.
+ * - `device`: read from the keyboard.
+ * - `last-written`: the last configuration this app wrote. These keyboards have no read-back command, so the
+ *   keyboard itself may differ if it was changed by other means (another tool, a factory reset).
+ * - `assumed-default`: nothing was ever written, so the factory state is assumed.
+ */
+export type ConfigSource = 'device' | 'last-written' | 'assumed-default'
+
 export interface KeyboardStatus {
   connection: ConnectionState
   transport: 'hidraw' | 'mock'
@@ -42,6 +51,7 @@ export interface KeyboardStatus {
   activeLayer?: Layer
   /** Hash of the current KeyboardConfig. Plans are bound to it. */
   configRevision: string
+  configSource: ConfigSource
 }
 
 // ---------------------------------------------------------------------------

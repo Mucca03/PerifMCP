@@ -118,8 +118,9 @@ export class KeyboardServiceImpl implements KeyboardService {
     } else if (info.modelName === undefined) {
       reasons.push('The keyboard model is not recognised')
     }
-    if (!this.backend.supportsWrites) {
-      reasons.push(this.backend.writeBlocker?.() ?? 'The backend does not support writes yet')
+    // When writes are off by configuration, that one reason says it all.
+    if (!this.backend.supportsWrites && this.allowWrites) {
+      reasons.push(this.backend.writeBlocker?.() ?? 'The backend does not support writes')
     }
 
     let configRevisionValue = 'unavailable'
@@ -139,6 +140,7 @@ export class KeyboardServiceImpl implements KeyboardService {
       writeEnabled,
       writeDisabledReasons: reasons,
       configRevision: configRevisionValue,
+      configSource: this.backend.configSource(),
     }
     if (info !== undefined) {
       // The serial number is not needed by any client and is kept out of API and tool output.

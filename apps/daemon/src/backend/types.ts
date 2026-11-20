@@ -1,4 +1,4 @@
-import type { ConfigChange, DeviceInfo, KeyboardConfig } from '@perifmcp/core'
+import type { ConfigChange, ConfigSource, DeviceInfo, KeyboardConfig } from '@perifmcp/core'
 
 /**
  * Everything the service needs from a keyboard. Internal to the daemon, not a core contract.
@@ -15,6 +15,8 @@ export interface DeviceBackend {
    * last configuration this process wrote, on top of an assumed factory default.
    */
   readonly readsBack: boolean
+  /** Where `readConfig` comes from. Mock backends read their own memory and report `device`. */
+  configSource(): ConfigSource
   /** Why `supportsWrites` is false, when the backend knows. Shown in `status().writeDisabledReasons`. */
   writeBlocker?(): string | undefined
   /** `undefined` when no keyboard is connected. Throws if a connected keyboard cannot be queried. */
