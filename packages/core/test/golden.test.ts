@@ -20,6 +20,8 @@ import {
   encodeKeyPressEffectPayload,
   encodeLightingPayload,
   encodeMacroPayload,
+  getInfoFromLEBuffer,
+  getLEBufferFromInfo,
   keySetValuesFromPayload,
   reassembleBufferedWrite,
   sha256,
@@ -205,5 +207,23 @@ describe('golden: lighting (0x27) and key press effects (0x26)', () => {
     expect(packets[0]?.[2]).toBe(DATA_TYPE.keyPressLightingEffect)
     expect(toHex(packets[1] as Uint8Array)).toBe('2601000000008957' + 'ff03ff00ff' + '00'.repeat(51))
     expect(decodeKeyPressEffectPayload(payload, map)).toEqual({ a: 3, b: 0 })
+  })
+})
+
+describe('golden: LE container', () => {
+  // Source: GK6X/CMFile.cs Encrypt. Expected bytes from test/golden/gen_golden.py.
+  it('encodes a LIGHT file', () => {
+    const buffer = getLEBufferFromInfo({
+      header: { typeName: 'LIGHT', time: 1700000000 },
+      body: Uint8Array.from({ length: 10 }, (_, index) => index),
+    })
+    expect(toHex(buffer)).toBe('31464d43b377000000f153650a00000041c20000020000004c49474854000000dec4e963ae51bc849030')
+    expect(getInfoFromLEBuffer(buffer).body).toEqual(Uint8Array.from({ length: 10 }, (_, index) => index))
+  })
+
+  it('encodes a MACRO file', () => {
+    const buffer = getLEBufferFromInfo({ header: { typeId: 5, typeName: 'MACRO', time: 1700000000 }, body: new TextEncoder().encode('hello') })
+    expect(toHex(buffer)).toBe('31464d434fae000000f15365050000006ed20000050000004d4143524f000000bbef83ba60')
+    expect(new TextDecoder().decode(getInfoFromLEBuffer(buffer).body)).toBe('hello')
   })
 })

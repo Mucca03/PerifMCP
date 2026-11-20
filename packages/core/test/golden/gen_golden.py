@@ -150,3 +150,24 @@ show("lighting 0x27 dynamic", buffered(0x27, 1, payload, 5))
 
 # H: key press effects
 show("0x26 key press", buffered(0x26, 1, bytes([0xFF, 3, 0xFF, 0, 0xFF]), 4))
+
+
+# J: LE container (GK6X/CMFile.cs Encrypt): type LIGHT (2), time 1700000000, body 00 01 02 03 04 05 06 07 08 09
+def le_container(type_id, type_name, time, body):
+    name8 = type_name.encode().ljust(8, b"\0")
+    key = crc16(name8, crc16(type_name.encode()))
+    enc = bytearray()
+    for b in body:
+        enc.append(b ^ (key & 0xFF))
+        key = crc16(bytes([b]), key)
+    header = bytearray(32)
+    struct.pack_into("<IIIIIB", header, 0, 0x434D4631, 0, time, len(body), crc16(body), type_id)
+    header[24:32] = name8
+    struct.pack_into("<I", header, 4, crc16(bytes(header)))
+    return bytes(header) + bytes(enc)
+
+
+le = le_container(2, "LIGHT", 1700000000, bytes(range(10)))
+print("LE container LIGHT:", le.hex())
+le = le_container(5, "MACRO", 1700000000, b"hello")
+print("LE container MACRO:", le.hex())
