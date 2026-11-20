@@ -20,8 +20,9 @@
  * packet logger, which decodes real vendor traffic, requires a 512 byte stride. This module uses 512.
  * unverified: which of the two the firmware needs when more than one macro is written.
  */
-import type { MacroStep, Modifier } from '../types.js'
+import type { Macro, MacroStep, Modifier } from '../types.js'
 import { crc16ccitt } from './crc16.js'
+import { DATA_TYPE, WRITE_COMMAND, buildBufferedWrite, buildResetPacket, type DeviceLayer } from './framing.js'
 import { KEYBOARD_USAGE, KEYBOARD_USAGE_BY_VALUE, MODIFIER_BITS, MODIFIER_CODE_BY_BIT, MODIFIER_KEY_BITS } from './keycodes.js'
 
 export const MACRO_MAGIC = 0x55aa
@@ -284,4 +285,64 @@ function assertByte(value: number, name: string): void {
   if (!Number.isInteger(value) || value < 0 || value > 0xff) {
     throw new RangeError(`${name} must be an integer between 0 and 255`)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Whole macro tables
+// ---------------------------------------------------------------------------
+
+/**
+ * Encodes every macro of the config into one payload. The device index of a macro is its position in
+ * the array, so the key value of a macro key is `0x0A010000 + position`.
+ * Repeat: `repeat` (default 1) with repeat type "repeat N times". The other repeat types have no
+ * semantic equivalent yet.
+ */
+export function encodeMacroPayload(macros: readonly Macro[]): Uint8Array {
+  const records = macros.map((macro, index) => {
+    const { actions, trailingDelay } = macroStepsToActions(macro.steps)
+    return encodeMacroRecord({
+      index,
+      actions,
+      repeatType: MACRO_REPEAT_TYPE.repeatXTimes,
+      repeatCount: macro.repeat ?? 1,
+      trailingDelay,
+    })
+  })
+  const payload = new Uint8Array(records.length * MACRO_RECORD_SIZE)
+  records.forEach((record, index) => payload.set(record, index * MACRO_RECORD_SIZE))
+  return payload
+}
+
+/** Splits a payload into records. Trailing bytes shorter than a record (chunk padding) are ignored. */
+export function decodeMacroPayload(payload: Uint8Array): DecodedMacroRecord[] {
+  const count = Math.floor(payload.length / MACRO_RECORD_SIZE)
+  const records: DecodedMacroRecord[] = []
+  for (let index = 0; index < count; index += 1) {
+    records.push(decodeMacroRecord(payload.subarray(index * MACRO_RECORD_SIZE, (index + 1) * MACRO_RECORD_SIZE)))
+  }
+  return records
+}
+
+/**
+ * Back to semantic macros. The device stores no names, so `ids[index]` provides the id (and the name);
+ * missing ids become `macro<index>`. `repeat` is omitted when it is 1.
+ */
+export function decodeMacros(payload: Uint8Array, ids: readonly string[] = []): Macro[] {
+  return decodeMacroPayload(payload).map((record) => {
+    if (record.repeatType !== MACRO_REPEAT_TYPE.repeatXTimes) {
+      throw new RangeError(`Macro ${record.index} uses repeat type ${record.repeatType}, which the model cannot express`)
+    }
+    const id = ids[record.index] ?? `macro${record.index}`
+    const macro: Macro = { id, name: id, steps: macroActionsToSteps(record.actions) }
+    if (record.repeatCount !== 1) macro.repeat = record.repeatCount
+    return macro
+  })
+}
+
+/** Reset (0x21, data type 4) then write (0x25). Same order as `KeyboardDevice.SetMacros`. */
+export function buildMacroWrite(layer: DeviceLayer, macros: readonly Macro[]): Uint8Array[] {
+  return [
+    buildResetPacket(layer, DATA_TYPE.macros),
+    ...buildBufferedWrite(WRITE_COMMAND.macros, layer, encodeMacroPayload(macros)),
+  ]
 }
