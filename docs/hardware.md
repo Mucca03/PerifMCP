@@ -88,3 +88,24 @@ The 64-key ANSI layout is documented in `packages/core/src/layout.ts`:
 - row 5: 1.25u Ctrl/Win/Alt, 6.25u Space, Fn, Menu, Left, Down, Right.
 
 If the real matrix differs, correct the layout after the read-only handshake; do not guess the wiring.
+
+## Probe results (read-only)
+
+Run with `pnpm --filter @perifmcp/daemon probe`. Only `0x01` (info) and `0x0c` (ping) were sent, through `guardConnection` in `read-only` mode.
+
+| Item | Value | Notes |
+|---|---|---|
+| Model ID | `656801886` (`0x2726005E`) | Device fact from `0x01/0x08`. |
+| Firmware ID | `2418119201` (`0x90219221`) | From `0x01/0x01`. |
+| Firmware version | `291` (`0x0123`) | Bytes `0x23`, `0x01`. The GK6X reference reads minor first, then major, which gives v1.35. Not confirmed. |
+| Device ID (`0x01/0x02`) | `0xFFFFFFFFFFFF` | All ones. The reference treats this value as unused (`-1`). It does not identify the unit. |
+| `0x01/0x09` | `14`, `8` | Stored as `matrix.column` and `matrix.row` by `Gk6xClient`. In the reference they are `bufferSizeA` and `bufferSizeB`, and their product sizes the key tables. Whether they are a real matrix is unverified. |
+| Ping | replies | The reference sends ping without waiting for a reply. Treat the reply as optional. |
+
+The model ID and firmware ID match an entry in the GK6X model list, so the reference tool's handshake would accept this unit. That list is proprietary and is not copied here. The key index map for this model is therefore not in the repo. It must be supplied at runtime (`PERIFMCP_MODELS_FILE`).
+
+Framing confirmed: each request is sent as 65 bytes, a `0x00` report ID followed by the 64-byte packet, and the replies come back as 64-byte reports. `HidrawTransport` already does this.
+
+On the first run the keyboard accepted writes but sent no reply on any of the three interfaces. After unplugging and reconnecting it, it answered every command. If the probe times out again, reconnect the keyboard before debugging the code.
+
+Writes stay disabled. No write command has been sent to this device.
