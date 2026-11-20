@@ -144,6 +144,21 @@ describe('encodeChanges', () => {
     expect(wave.unsupported[0]).toMatch(/^lighting\.effect: Lighting effect "wave"/)
   })
 
+  it('encodes breathing to every device layer and decodes it back', () => {
+    const breathing: ConfigChange = {
+      type: 'set-lighting',
+      lighting: { ...before.lighting, enabled: true, effect: 'breathing', color: { r: 134, g: 239, b: 172 }, speed: 50 },
+    }
+    const result = encodeChanges(before, [breathing], context)
+    expect(result.errors).toEqual([])
+    expect(result.unsupported).toEqual([])
+    expect(summary(result.steps)).toEqual(['lighting@1', 'lighting@2', 'lighting@3', 'lighting@4', 'refresh@1'])
+    const state = decodeWrites(parseWriteSequence(flat(result.steps)), context)
+    const effects = state.lighting[DEVICE_LAYER.base] ?? []
+    expect(effects).toHaveLength(1)
+    expect(effects[0]).toMatchObject({ type: 'dynamic', params: [{ colorType: 2, color: { r: 134, g: 239, b: 172, a: 0 }, value1: 5, value2: 5 }] })
+  })
+
   it('reports invalid changes and unmapped keys', () => {
     const invalid = encodeChanges(before, [{ type: 'set-key', layer: 'base', keyId: 'nope', assignment: { kind: 'none' } }], context)
     expect(invalid.steps).toEqual([])

@@ -148,6 +148,26 @@ print("frame record", data[:26].hex())
 print("param record", pdata.hex())
 show("lighting 0x27 dynamic", buffered(0x27, 1, payload, 5))
 
+# G2: breathing built from the semantic state (see `breathingEffect` in lighting.ts).
+# All 64 keys of the synthetic map (location codes 0..63) breathe in one color. Speed 50 -> ramp of 19 ticks,
+# so value1 = 100 // 19 = 5 and the stay count is 5. Alpha is 0 in dynamic parameters.
+all_keys = list(range(64))
+b_frames = [(1, all_keys)]
+b_params = [(2, all_keys, (134, 239, 172, 0), 100 // 19, 5)]
+b_table = bytearray(b"\xff" * 512)
+b_data = b""
+for count, keys in b_frames:
+    for _ in range(count):
+        b_data += struct.pack("<HH", 3, 22) + mask(keys)
+b_pdata = b""
+for ctype, keys, (r, g, b, a), v1, v2 in b_params:
+    b_pdata += bytes([ctype, 32]) + mask(keys) + bytes([r, g, b, a]) + struct.pack("<HH", v1, v2)
+struct.pack_into("<iiii", b_table, 0, 512, 1, 512 + len(b_data), 1)
+b_payload = bytes(b_table) + b_data + b_pdata
+print("breathing payload len", len(b_payload), "table[0:16]", b_payload[:16].hex(), "sha", hashlib.sha256(b_payload).hexdigest())
+print("breathing param record", b_pdata.hex())
+show("lighting 0x27 breathing", buffered(0x27, 1, b_payload, 5))
+
 # H: key press effects
 show("0x26 key press", buffered(0x26, 1, bytes([0xFF, 3, 0xFF, 0, 0xFF]), 4))
 

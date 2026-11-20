@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BREATHING_MAX_COLORS,
   LIGHTING_MAX_EFFECTS,
   STATIC_LIGHTING_SLOTS,
   UnsupportedLightingError,
+  breathingTiming,
   createDefaultConfig,
   decodeLightingPayload,
   encodeKeyPressEffectPayload,
@@ -41,10 +43,60 @@ describe('lightingToEffects', () => {
     expect(colors[map.location.w as number]).toEqual({ r: 255, g: 0, b: 0, a: 255 })
   })
 
-  it('refuses effects that need vendor effect data', () => {
-    for (const effect of ['breathing', 'rainbow', 'wave', 'reactive'] as const) {
+  it('refuses effects that are not implemented yet', () => {
+    for (const effect of ['rainbow', 'wave', 'reactive'] as const) {
       expect(() => lightingToEffects(lighting({ effect }), map), effect).toThrow(UnsupportedLightingError)
     }
+  })
+
+  it('breathes every key in one color when there are no per-key colors', () => {
+    const [effect] = lightingToEffects(
+      lighting({ effect: 'breathing', color: { r: 255, g: 128, b: 0 }, brightness: 50, speed: 50 }),
+      map,
+    )
+    expect(effect?.type).toBe('dynamic')
+    if (effect?.type !== 'dynamic') return
+    const everyKey = Object.values(map.location).sort((a, b) => a - b)
+    expect(effect.frames).toEqual([{ count: 1, keys: everyKey }])
+    expect(effect.params).toHaveLength(1)
+    const [param] = effect.params
+    expect(param).toMatchObject({ colorType: 2, keys: everyKey, color: { r: 128, g: 64, b: 0, a: 0 } })
+    // Speed 50 is a ramp of 19 ticks: value1 = floor(100 / 19), the stay count is 5 like the vendor effects.
+    expect(param).toMatchObject({ value1: 5, value2: 5 })
+  })
+
+  it('groups per-key colors into one parameter each and leaves other keys dark', () => {
+    const red = { r: 255, g: 0, b: 0 }
+    const blue = { r: 0, g: 0, b: 255 }
+    const [effect] = lightingToEffects(
+      lighting({ effect: 'breathing', perKey: { w: red, a: red, s: red, d: blue } }),
+      map,
+    )
+    if (effect?.type !== 'dynamic') throw new Error('expected a dynamic effect')
+    const code = (id: string): number => map.location[id] as number
+    const byColor = Object.fromEntries(effect.params.map((param) => [`${param.color.r},${param.color.g},${param.color.b}`, param.keys]))
+    expect(byColor['255,0,0']).toEqual([code('w'), code('a'), code('s')].sort((x, y) => x - y))
+    expect(byColor['0,0,255']).toEqual([code('d')])
+    expect(effect.frames[0]?.keys).toEqual([code('w'), code('a'), code('s'), code('d')].sort((x, y) => x - y))
+  })
+
+  it('maps speed to the ramp length: a faster speed is a shorter ramp and a larger value1', () => {
+    const slow = breathingTiming(0)
+    const medium = breathingTiming(50)
+    const fast = breathingTiming(100)
+    expect([slow.count, medium.count, fast.count]).toEqual([60, 19, 6])
+    expect(slow.value1).toBeLessThan(medium.value1)
+    expect(medium.value1).toBeLessThan(fast.value1)
+    expect(breathingTiming(-20).count).toBe(60)
+    expect(breathingTiming(500).count).toBe(6)
+  })
+
+  it('refuses a breathing effect with too many different colors', () => {
+    const perKey: Record<string, { r: number; g: number; b: number }> = {}
+    Object.keys(map.location).slice(0, BREATHING_MAX_COLORS + 1).forEach((id, index) => {
+      perKey[id] = { r: index + 1, g: 0, b: 0 }
+    })
+    expect(() => lightingToEffects(lighting({ effect: 'breathing', perKey }), map)).toThrow(UnsupportedLightingError)
   })
 
   it('refuses keys without a location code', () => {

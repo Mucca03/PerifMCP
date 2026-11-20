@@ -13,6 +13,7 @@ import {
   buildMacroWrite,
   buildResetPacket,
   buildSetLayerPacket,
+  createDefaultConfig,
   decodeKeyPressEffectPayload,
   decodeLightingPayload,
   decodeMacroPayload,
@@ -23,6 +24,7 @@ import {
   getInfoFromLEBuffer,
   getLEBufferFromInfo,
   keySetValuesFromPayload,
+  lightingToEffects,
   reassembleBufferedWrite,
   sha256,
   toHex,
@@ -30,6 +32,7 @@ import {
   type LightingEffectRecord,
   type Macro,
 } from '../src/index.js'
+import { syntheticMap } from './helpers/map.js'
 
 const digest = (packets: Uint8Array[]): string => {
   const all = new Uint8Array(packets.length * 64)
@@ -197,6 +200,23 @@ describe('golden: lighting (0x27) and key press effects (0x26)', () => {
       'b458e71afa38aed93062e4ef1ef26877571df021d882edfb1f86a831a552b4b3',
     )
     expect(decodeLightingPayload(payload)).toEqual(effects)
+  })
+
+  it('encodes breathing built from the semantic state like the independent generator does', () => {
+    // Expected bytes and hashes from test/golden/gen_golden.py (case G2): one color on all 64 keys, speed 50.
+    const map = syntheticMap()
+    const lighting = { ...createDefaultConfig().lighting, enabled: true, effect: 'breathing' as const, color: { r: 134, g: 239, b: 172 }, brightness: 100, speed: 50 }
+    const effects = lightingToEffects(lighting, map)
+    const payload = encodeLightingPayload(effects)
+    expect(payload).toHaveLength(570)
+    // dataOffset 512, dataCount 1 (one frame record), paramOffset 538, paramCount 1
+    expect(toHex(payload.subarray(0, 16))).toBe('00020000' + '01000000' + '1a020000' + '01000000')
+    expect(toHex(payload.subarray(538, 570))).toBe('0220ffffffffffffffff000000000000000000000000000086efac0005000500')
+    expect(toHex(sha256(payload))).toBe('5c21ad592489632599b8543002b1950008570f6043b9e78433d7e819c4f16e26')
+    const packets = buildLightingWrite(DEVICE_LAYER.base, effects)
+    expect(packets).toHaveLength(1 + 11)
+    expect(digest(packets.slice(1))).toBe('6e70fe042e0ea7e5b14a0a4457b1d5d94ddaf197d48afe516f255ecda652a2c0')
+    expect(decodeLightingPayload(reassembleBufferedWrite(packets.slice(1)).payload)).toEqual(effects)
   })
 
   it('writes key press effects, 0xFF meaning none', () => {

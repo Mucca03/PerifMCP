@@ -20,9 +20,11 @@
  * A key mask is a bit set over lighting location codes, bit `k` of byte `k / 8` is `1 << (k % 8)`.
  * RGBA is four bytes in the order red, green, blue, alpha. Static colors use alpha 0xFF when lit.
  *
- * Dynamic effects are only encoded from explicit raw records. The reference builds them from the vendor's
- * `.le` effect files (proprietary, not in this repository), and the meaning of `value1` / `value2` per
- * color type is only partly documented there (breathing: 100 / count, rgb: 360 / count, "StayCount").
+ * Dynamic effects are encoded from explicit raw records, and `breathing` is built from the semantic lighting
+ * state with the reference conventions (`SetLighting`: breathing value1 = 100 / count, value2 = "StayCount").
+ * The vendor's `.le` effect files (proprietary, not in this repository) are not used: the values below were
+ * calibrated against their parameter ranges (breathing: count 20 and stay 5 in most of them, count 6 and
+ * stay 25 in the fastest ones), and the effect itself is defined here.
  * unverified: what the firmware does with values outside those conventions.
  */
 import type { LightingState, RGBColor } from '../types.js'
@@ -301,6 +303,64 @@ function scale(color: RGBColor, brightness: number): Rgba {
   }
 }
 
+/** Most distinct colors one breathing effect may use. unverified: the firmware limit is not documented. */
+export const BREATHING_MAX_COLORS = 16
+/** Ticks a breathing key stays lit at full brightness. The vendor's own effects mostly use 5. */
+export const BREATHING_STAY = 5
+
+/**
+ * Converts a speed percentage to the two device values of a breathing parameter.
+ *
+ * The reference stores `value1 = 100 / count` and `value2 = stayCount`, where `count` is the length of the
+ * ramp in ticks: the vendor's effects use 20 for a medium speed and 6 for the fastest. Speed 0 maps to a
+ * ramp of 60 ticks, speed 50 to about 19 and speed 100 to 6.
+ * unverified: that a longer ramp is a slower breath on the keyboard.
+ */
+export function breathingTiming(speed: number): { count: number; value1: number; value2: number } {
+  const clamped = Math.min(100, Math.max(0, speed))
+  const count = Math.round(60 * 0.1 ** (clamped / 100))
+  return { count, value1: Math.floor(100 / count), value2: BREATHING_STAY }
+}
+
+function breathingEffect(lighting: LightingState, map: KeyIndexMap): DynamicLightingEffect {
+  const locationOf = (keyId: string): number => {
+    const code = map.location[keyId]
+    if (code === undefined) throw new RangeError(`No lighting location code for key ${keyId}`)
+    return code
+  }
+
+  // Group the lit keys by their final color. Keys with the same color share one parameter.
+  const groups = new Map<string, { color: Rgba; keys: number[] }>()
+  const add = (keyId: string, color: RGBColor): void => {
+    const rgba = { ...scale(color, lighting.brightness), a: 0 }
+    const id = `${rgba.r},${rgba.g},${rgba.b}`
+    const group = groups.get(id) ?? { color: rgba, keys: [] }
+    group.keys.push(locationOf(keyId))
+    groups.set(id, group)
+  }
+  const perKey = Object.entries(lighting.perKey)
+  if (perKey.length > 0) for (const [keyId, color] of perKey) add(keyId, color)
+  else for (const keyId of Object.keys(map.location)) add(keyId, lighting.color)
+
+  if (groups.size > BREATHING_MAX_COLORS) {
+    throw new UnsupportedLightingError(
+      `Breathing supports at most ${BREATHING_MAX_COLORS} different colors, got ${groups.size}`,
+    )
+  }
+
+  const { value1, value2 } = breathingTiming(lighting.speed)
+  const params: DynamicLightingParam[] = [...groups.values()].map((group) => ({
+    // The reference leaves alpha at 0 in dynamic parameters. Only static keys use 0xFF.
+    colorType: LIGHTING_COLOR_TYPE.breathing,
+    keys: [...group.keys].sort((a, b) => a - b),
+    color: group.color,
+    value1,
+    value2,
+  }))
+  const lit = [...groups.values()].flatMap((group) => group.keys).sort((a, b) => a - b)
+  return { type: 'dynamic', frames: [{ count: 1, keys: lit }], params }
+}
+
 /**
  * Maps the semantic lighting state to device effect records.
  *
@@ -310,9 +370,10 @@ function scale(color: RGBColor, brightness: number): Rgba {
  * - brightness: the static record has no brightness field, so the colors are scaled by `brightness / 100`
  *   before encoding (software dimming). Keyboard-wide brightness is a key function in the firmware.
  * - speed and direction have no meaning for static colors and are ignored.
- * - breathing, rainbow, wave, reactive: not supported. They need the vendor's effect files or the
- *   per-key effect table, and the reference does not document the parameters well enough. Throws
- *   `UnsupportedLightingError`.
+ * - breathing: one dynamic effect. One parameter per distinct color, each with the keys of that color. With no
+ *   per-key colors every key breathes in `color`. With per-key colors only those keys breathe, the others stay
+ *   dark. `speed` sets the ramp length (see `breathingTiming`). `direction` is ignored.
+ * - rainbow, wave, reactive: not supported. Throws `UnsupportedLightingError`.
  */
 export function lightingToEffects(lighting: LightingState, map: KeyIndexMap): LightingEffectRecord[] {
   const colors: Record<number, Rgba> = {}
@@ -330,9 +391,11 @@ export function lightingToEffects(lighting: LightingState, map: KeyIndexMap): Li
       for (const [keyId, color] of Object.entries(lighting.perKey)) {
         colors[locationOf(keyId)] = scale(color, lighting.brightness)
       }
+    } else if (lighting.effect === 'breathing') {
+      return [breathingEffect(lighting, map)]
     } else {
       throw new UnsupportedLightingError(
-        `Lighting effect "${lighting.effect}" cannot be encoded: it needs vendor effect data that is not available`,
+        `Lighting effect "${lighting.effect}" cannot be encoded yet: only off, solid, per-key and breathing are supported`,
       )
     }
   }
