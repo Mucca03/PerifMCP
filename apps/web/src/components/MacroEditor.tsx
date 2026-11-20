@@ -67,6 +67,20 @@ export function macroFromDraft(draft: Draft, existingIds: readonly string[]): Ma
   return { id, name: draft.name.trim(), steps, repeat }
 }
 
+/** Limits that belong to the UI and the daemon, on top of the device rules checked by `validateChange`. */
+export const MAX_DELAY_MS = 60_000
+
+export function macroUiErrors(macro: Macro): string[] {
+  const errors: string[] = []
+  if (macro.name === '') errors.push('The macro needs a name.')
+  macro.steps.forEach((step, index) => {
+    if (step.type === 'delay' && step.ms > MAX_DELAY_MS) {
+      errors.push(`steps[${index}]: delay must be at most ${MAX_DELAY_MS} ms`)
+    }
+  })
+  return errors
+}
+
 export function MacroEditor() {
   const { config, layout, client, registerOwnPlan, setFocusPlanId, refresh } = useApp()
   const [draft, setDraft] = useState<Draft>(emptyDraft)
@@ -77,7 +91,10 @@ export function MacroEditor() {
     () => macroFromDraft(draft, config?.macros.map((m) => m.id) ?? []),
     [draft, config?.macros],
   )
-  const errors = useMemo(() => validateChange({ type: 'set-macro', macro }, layout), [macro, layout])
+  const errors = useMemo(
+    () => [...macroUiErrors(macro), ...validateChange({ type: 'set-macro', macro }, layout)],
+    [macro, layout],
+  )
 
   if (!config) return <p className="text-xs text-gray-500">Loading macros…</p>
 
@@ -224,7 +241,7 @@ export function MacroEditor() {
                     <TextInput
                       type="number"
                       min={1}
-                      max={10000}
+                      max={60000}
                       value={step.ms}
                       aria-label={`Step ${index + 1} delay in milliseconds`}
                       onChange={(e) => updateStep(step.uid, { ms: e.target.value })}

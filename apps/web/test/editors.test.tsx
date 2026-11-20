@@ -31,13 +31,18 @@ describe('macro editor', () => {
     await user.type(screen.getByRole('textbox', { name: /name/i }), 'greet')
     expect(create).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Add delay step' }))
+    // The device rules (core `validateChange`) do not allow a macro to start with a delay.
     await user.click(screen.getByRole('button', { name: 'Move step 2 up' }))
+    expect(create).toBeDisabled()
+    expect(screen.getByRole('list', { name: 'Validation errors' })).toHaveTextContent('cannot start with a delay')
+    await user.click(screen.getByRole('button', { name: 'Move step 1 down' }))
+    expect(create).toBeEnabled()
     await user.click(create)
     const [plan] = await client.listPlans()
     expect(plan?.changes).toEqual([
       {
         type: 'set-macro',
-        macro: { id: 'macro-greet', name: 'greet', repeat: 1, steps: [{ type: 'delay', ms: 50 }, { type: 'key', code: 'a' }] },
+        macro: { id: 'macro-greet', name: 'greet', repeat: 1, steps: [{ type: 'key', code: 'a' }, { type: 'delay', ms: 50 }] },
       },
     ])
     const steps = screen.getByRole('list', { name: 'Macro steps' })
@@ -51,8 +56,8 @@ describe('macro editor', () => {
     await user.click(screen.getByRole('button', { name: 'Add delay step' }))
     const delay = screen.getByRole('spinbutton', { name: /Step 2 delay/ })
     await user.clear(delay)
-    await user.type(delay, '0')
-    expect(screen.getByRole('list', { name: 'Validation errors' })).toHaveTextContent('delay must be a whole number from 1 to 10000 ms')
+    await user.type(delay, '70000')
+    expect(screen.getByRole('list', { name: 'Validation errors' })).toHaveTextContent('delay must be at most 60000 ms')
     expect(screen.getByRole('button', { name: 'Create plan' })).toBeDisabled()
   })
 })

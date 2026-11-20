@@ -1,6 +1,6 @@
 import { createDefaultConfig, KeyboardServiceError } from '@perifmcp/core'
 import type { ConfigChange, DeviceInfo, KeyboardConfig } from '@perifmcp/core'
-import { applyChanges } from '../service/semantics-stub.js'
+import { applyChanges } from '@perifmcp/core'
 import type { DeviceBackend } from './types.js'
 
 export interface MockBackendOptions {
@@ -15,9 +15,6 @@ export interface MockBackendOptions {
 
 function defaultMockConfig(): KeyboardConfig {
   const config = createDefaultConfig()
-  // The mock speaks the semantic units of the contract: brightness and speed are percent.
-  config.lighting.brightness = 100
-  config.lighting.speed = 50
   return config
 }
 

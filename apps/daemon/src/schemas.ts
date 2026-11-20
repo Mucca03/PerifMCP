@@ -31,7 +31,7 @@ import {
   MIN_MACRO_DELAY_MS,
   MIN_MACRO_REPEAT,
 } from './limits.js'
-import { isKeyCode } from './service/semantics-stub.js'
+import { isKeyCode } from '@perifmcp/core'
 import { stripUndefined, validationError, zodIssues } from './service/util.js'
 
 export const MODIFIERS = ['ctrl', 'shift', 'alt', 'gui'] as const

@@ -299,7 +299,7 @@ function seedConfig(): KeyboardConfig {
     enabled: true,
     effect: 'per-key',
     color: { r: 134, g: 239, b: 172 },
-    // Percent. The real default config moves to percent in the protocol agent's phase 1.
+    // Percent.
     brightness: 70,
     speed: 50,
     direction: 0,

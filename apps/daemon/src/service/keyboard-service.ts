@@ -37,7 +37,7 @@ import {
 } from '../schemas.js'
 import { affectedKeyIds, configToChanges } from './changes.js'
 import { PlanStore } from './plan-store.js'
-import { applyChanges, configRevision, diffConfig, hexToRgb, validateChange, zoneKeys } from './semantics-stub.js'
+import { applyChanges, configRevision, diffConfig, hexToRgb, validateChange, zoneKeys } from '@perifmcp/core'
 import { SnapshotStore } from './snapshot-store.js'
 import { Mutex, errorMessage, jsonEqual, validationError } from './util.js'
 

@@ -2,7 +2,7 @@ import { readdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ConfigPlan, KeyboardConfig } from '@perifmcp/core'
-import { configRevision, diffConfig } from '../src/service/semantics-stub.js'
+import { configRevision, diffConfig } from '@perifmcp/core'
 import { expectServiceError, makeRig, makeTempDir } from './helpers.js'
 
 const escapeForCaps = { layer: 'base', assignments: { capslock: { kind: 'key', code: 'escape' } } } as const

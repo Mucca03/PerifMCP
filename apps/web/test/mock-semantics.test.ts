@@ -17,7 +17,7 @@ const changes: ConfigChange[] = [
   { type: 'set-key', layer: 'fn1', keyId: 'q', assignment: { kind: 'layer', layer: 'fn2' } },
 ]
 
-describe('mock semantics (stand-in for core)', () => {
+describe('semantics (core helpers and UI helpers)', () => {
   it('applyChanges does not mutate and diffConfig reports the changed paths', () => {
     const before = createDefaultConfig()
     const snapshot = JSON.stringify(before)
@@ -48,9 +48,9 @@ describe('mock semantics (stand-in for core)', () => {
     expect(validateChange({ type: 'set-key', layer: 'base', keyId: 'nope', assignment: { kind: 'none' } })).not.toEqual([])
     expect(
       validateChange({ type: 'set-macro', macro: { id: 'm', name: 'm', steps: [{ type: 'key', code: 'zzz' }] } }),
-    ).toEqual(['Step 1: unknown key code "zzz".'])
+    ).toEqual(['steps[0]: unknown key code "zzz"'])
     expect(validateChange({ type: 'set-macro', macro: { id: 'm', name: 'm', steps: [] } })).toEqual([
-      'The macro needs at least one step.',
+      'A macro needs at least one key step',
     ])
   })
 
