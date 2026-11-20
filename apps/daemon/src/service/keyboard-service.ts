@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { DEFAULT_LAYOUT, KeyboardServiceError, LAYERS } from '@perifmcp/core'
+import { BREATHING_MAX_COLORS, DEFAULT_LAYOUT, KeyboardServiceError, LAYERS } from '@perifmcp/core'
 import type {
   ApplyResult,
   ConfigChange,
@@ -260,6 +260,12 @@ export class KeyboardServiceImpl implements KeyboardService {
     for (const [keyId, color] of Object.entries(input.perKey ?? {})) perKey[keyId] = toRgb(color)
 
     const next: LightingState = { ...config.lighting, perKey }
+    // Breathing uses per-key colors only when this request gives colors. Otherwise every key breathes in the main
+    // color, so the colors stored from an earlier profile must not leak into it.
+    if (input.effect === 'breathing' && !colorsGiven && Object.keys(config.lighting.perKey).length > 0) {
+      next.perKey = {}
+      warnings.push('Breathing without key colors uses the main color on every key, so the stored per-key colors were cleared')
+    }
     if (input.effect !== undefined) next.effect = input.effect
     else if (colorsGiven) next.effect = 'per-key'
     if (input.effect !== undefined || colorsGiven) next.enabled = next.effect !== 'off'
@@ -272,6 +278,11 @@ export class KeyboardServiceImpl implements KeyboardService {
       warnings.push('Lighting effect is off: these settings will not be visible until an effect is chosen')
     } else if (next.effect === 'per-key' && Object.keys(next.perKey).length === 0) {
       warnings.push('Effect is per-key but no key has a color: every key will stay dark')
+    } else if (next.effect === 'breathing') {
+      const colors = new Set(Object.values(next.perKey).map((c) => `${c.r},${c.g},${c.b}`)).size
+      if (colors > BREATHING_MAX_COLORS) {
+        warnings.push(`Breathing supports at most ${BREATHING_MAX_COLORS} different colors, this plan has ${colors}`)
+      }
     } else if (next.effect !== 'per-key' && colorsGiven && input.effect !== undefined) {
       warnings.push(`Effect "${next.effect}" does not use per-key colors; they are stored but not shown`)
     }

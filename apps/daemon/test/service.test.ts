@@ -168,6 +168,45 @@ describe('planning', () => {
     expect(Object.keys(lighting.perKey)).toHaveLength(64)
   })
 
+  it('breathes in the main color and drops stored key colors when the request gives none', async () => {
+    const rig = await makeRig({ allowWrites: true })
+    // A profile with 64 per-key colors is already stored, like after applying a gradient.
+    const profile = await rig.service.planLighting({ base: '#1e1e2e', perKey: { escape: '#f38ba8' } })
+    await rig.service.applyPlan(profile.id, true)
+
+    const plan = await rig.service.planLighting({ effect: 'breathing', color: '#86efac', speed: 40 })
+    const change = plan.changes[0]
+    if (change?.type !== 'set-lighting') throw new Error('expected set-lighting')
+    expect(change.lighting.effect).toBe('breathing')
+    expect(change.lighting.enabled).toBe(true)
+    expect(change.lighting.color).toEqual({ r: 134, g: 239, b: 172 })
+    expect(change.lighting.speed).toBe(40)
+    expect(change.lighting.perKey).toEqual({})
+    expect(plan.warnings.join(' ')).toMatch(/stored per-key colors were cleared/)
+  })
+
+  it('uses the colors of the request as breathing groups', async () => {
+    const { service } = await makeRig()
+    const plan = await service.planLighting({ effect: 'breathing', zones: { wasd: '#ff0000' }, base: '#0000ff' })
+    const change = plan.changes[0]
+    if (change?.type !== 'set-lighting') throw new Error('expected set-lighting')
+    expect(change.lighting.effect).toBe('breathing')
+    expect(Object.keys(change.lighting.perKey)).toHaveLength(64)
+    expect(change.lighting.perKey.w).toEqual({ r: 255, g: 0, b: 0 })
+    expect(plan.warnings.join(' ')).not.toMatch(/does not use per-key colors/)
+  })
+
+  it('warns when a breathing plan has more colors than the keyboard accepts', async () => {
+    const { service } = await makeRig()
+    const perKey: Record<string, `#${string}`> = {}
+    const keys = ['escape', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h']
+    keys.forEach((id, index) => {
+      perKey[id] = `#${(index + 1).toString(16).padStart(2, '0')}0000`
+    })
+    const plan = await service.planLighting({ effect: 'breathing', perKey })
+    expect(plan.warnings.join(' ')).toMatch(/at most 16 different colors/)
+  })
+
   it('warns when the lighting effect is off', async () => {
     const { service } = await makeRig()
     const plan = await service.planLighting({ speed: 10 })
