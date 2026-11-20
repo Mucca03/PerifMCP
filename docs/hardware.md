@@ -113,3 +113,27 @@ Writes stay disabled. No write command has been sent to this device.
 ## Local model file
 
 `profiles/local/models.json` (gitignored, mode `0600`) holds the model record and the key index map for this unit (`ModelID 656801886`, name `SK64 RGB` in the GK6X list). It was derived locally from the GK6X data files, which belong to jikedingzhi and must not be committed. `PERIFMCP_MODELS_FILE=profiles/local/models.json` points the daemon at it. The file has the `KeyIndex` section (`logicSize`, `logic`, `location`) that the protocol encoders expect. `loadModelRecords` currently reads only `ModelID`, `Name`, `FWID` and `LEType`, so `KeyIndex` is not wired into the daemon yet.
+
+## First write test (lighting, confirmed on the keyboard)
+
+Plan `keyboard_plan_lighting({ perKey: { escape: '#86efac' } })`, applied through the daemon on the `hid` backend with `PERIFMCP_ALLOW_WRITES=1` set only for that process.
+
+Sent: 93 packets, all acknowledged with a valid CRC. Commands used: `0x21` (clean lighting data) and `0x27` (write lighting) for each of the four device layers, then `0x0b` (set base layer). No key table, no `0x03`, no `0x41`.
+
+Observed by the owner: Esc lit in the requested green, every other key off. Typing was not affected.
+
+Confirmed by this test:
+
+- the write framing (`0x00` report ID plus 64 bytes) and the CRC;
+- the lighting sequence `0x21` then `0x27` per layer, followed by the refresh;
+- location code `0` for Esc, from the local key index map;
+- a `per-key` effect leaves every key without a color off;
+- the daemon flow: plan, preview, snapshot, apply with `confirm: true`.
+
+Still unverified: the layer mapping and the Fn layers, key tables (`0x22`, `0x31`), macros (`0x25`), press effects (`0x26`), brightness and speed scaling, dynamic effects (`breathing`, `rainbow`, `wave`, `reactive`), and whether a key table write needs the same refresh.
+
+Limits that remain:
+
+- The keyboard has no read-back command. `applyPlan` returns `applied: true, verified: false` on purpose, and `verify` returns `ok: false`. Only a person looking at the keyboard can confirm the result.
+- Snapshots hold the assumed factory default plus what this process wrote. They do not hold the lighting the keyboard had before. That previous lighting was overwritten and cannot be restored from the program. Restoring a snapshot writes the stored config, which for the first write is "lighting off".
+- The factory reset combo (`Fn+Esc+Q`) is still not checked against the manual.
